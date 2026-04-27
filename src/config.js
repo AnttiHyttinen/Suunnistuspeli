@@ -1,4 +1,5 @@
 export const CHECK_RADIUS_METERS = 10;
+export const START_RADIUS_METERS = 10;
 export const TRACK_MIN_DISTANCE_METERS = 2;
 export const TRACK_MIN_INTERVAL_MS = 2500;
 

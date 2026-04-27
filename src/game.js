@@ -1,4 +1,4 @@
-import { CHECK_RADIUS_METERS } from "./config.js";
+import { CHECK_RADIUS_METERS, START_RADIUS_METERS } from "./config.js";
 import {
   distanceMeters,
   formatDistance,
@@ -50,8 +50,21 @@ export class OrienteeringGame {
     this.emitChange();
   }
 
-  start(lastPosition) {
+  start(currentPosition) {
     if (!this.state.course || this.state.status === GameStatus.playing) {
+      return false;
+    }
+
+    if (!currentPosition) {
+      this.onNotify?.("GPS-sijainti puuttuu. Pelin voi aloittaa vasta lähtöpisteessä.");
+      return false;
+    }
+
+    const startDistance = distanceMeters(currentPosition, this.state.course.start);
+    if (startDistance > START_RADIUS_METERS) {
+      this.onNotify?.(
+        `Pelin voi aloittaa vasta lähtöpisteessä. Olet ${formatDistance(startDistance)} päässä lähdöstä.`,
+      );
       return false;
     }
 
@@ -63,10 +76,9 @@ export class OrienteeringGame {
     this.state.visits = [];
     this.state.track = [];
     this.state.visibleUntil = null;
+    this.state.latestPosition = currentPosition;
 
-    if (lastPosition) {
-      this.recordPosition({ ...lastPosition, timestamp: now }, { force: true });
-    }
+    this.recordPosition({ ...currentPosition, timestamp: now }, { force: true });
 
     this.onNotify?.("Peli alkoi. Sijainti piilotettiin kartalta.");
     this.emitChange();

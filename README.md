@@ -27,3 +27,5 @@ Oletuskarttana on OpenTopoMap, koska se toimii ilman avainta ja näyttää korke
 ## Tallennus
 
 `Tallenna tyhjä rata` vie radan ilman kuljettua reittiä. `Tallenna reitti` vie saman radan, GPS-jäljen ja rastikohtaiset väliajat JSON-muodossa.
+
+Pelin voi aloittaa vasta, kun GPS-sijainti on enintään 10 metrin päässä lähtöpisteestä. Löydetyn rastin karttamerkki täyttyy vihreäksi.

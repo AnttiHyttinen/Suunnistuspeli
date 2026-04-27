@@ -595,6 +595,14 @@ tr:last-child td {
   opacity: 0.82;
 }
 
+.course-symbol.visited circle {
+  fill: rgba(22, 131, 90, 0.72);
+}
+
+.course-symbol.visited text {
+  fill: #ffffff;
+}
+
 .user-pulse {
   width: 20px;
   height: 20px;

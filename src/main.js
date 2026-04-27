@@ -75,8 +75,17 @@ window.addEventListener("DOMContentLoaded", () => {
       mapView.fitCourse(course);
       ui.notify("Rata luotu.");
     },
-    onStart: () => {
-      const started = game.start(geoTracker.getLastPosition() || game.getState().start);
+    onStart: async () => {
+      let position = geoTracker.getLastPosition();
+
+      try {
+        position = await geoTracker.getCurrentPosition();
+      } catch (error) {
+        ui.notify(error.message || "Paikannus ei onnistunut. Peli alkaa vain lähtöpisteessä.");
+        return;
+      }
+
+      const started = game.start(position);
       if (!started) {
         return;
       }
