@@ -138,9 +138,22 @@
         </section>
 
         <section class="panel-section save-section">
+          <div class="section-heading">
+            <h2>Tallennukset</h2>
+            <span id="savedCountText">0 kpl</span>
+          </div>
           <div class="button-row">
             <button id="saveBlankButton" type="button" class="secondary" disabled>Tallenna tyhjä rata</button>
             <button id="saveResultButton" type="button" class="secondary" disabled>Tallenna reitti</button>
+          </div>
+          <label class="field saved-picker">
+            <span>Lataa selaimesta</span>
+            <select id="savedItemsSelect">
+              <option value="">Ei tallennuksia</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button id="loadSavedButton" type="button" class="secondary" disabled>Lataa valittu</button>
           </div>
         </section>
       </aside>

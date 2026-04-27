@@ -258,6 +258,10 @@ button:focus-visible {
   background: var(--signal);
 }
 
+.primary.danger {
+  background: var(--danger);
+}
+
 .secondary {
   border: 1px solid var(--line);
   background: #f8faf5;
@@ -361,6 +365,10 @@ button:focus-visible {
 .control-meta {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.saved-picker {
+  margin-top: 12px;
 }
 
 .table-wrap {

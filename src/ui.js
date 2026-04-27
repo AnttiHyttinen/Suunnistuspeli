@@ -15,6 +15,9 @@ export class UI {
       startButton: document.querySelector("#startButton"),
       saveBlankButton: document.querySelector("#saveBlankButton"),
       saveResultButton: document.querySelector("#saveResultButton"),
+      savedCountText: document.querySelector("#savedCountText"),
+      savedItemsSelect: document.querySelector("#savedItemsSelect"),
+      loadSavedButton: document.querySelector("#loadSavedButton"),
       courseDistanceBadge: document.querySelector("#courseDistanceBadge"),
       timerText: document.querySelector("#timerText"),
       gameStatusText: document.querySelector("#gameStatusText"),
@@ -64,6 +67,9 @@ export class UI {
     this.elements.saveResultButton.addEventListener("click", () =>
       actions.onSaveResult?.(),
     );
+    this.elements.loadSavedButton.addEventListener("click", () =>
+      actions.onLoadSaved?.(this.getSelectedSavedId()),
+    );
   }
 
   getCourseSettings() {
@@ -90,6 +96,18 @@ export class UI {
     this.elements.mapLayerSelect.value = value;
   }
 
+  getSelectedSavedId() {
+    return this.elements.savedItemsSelect.value;
+  }
+
+  askSaveName(defaultName) {
+    return window.prompt("Anna tallennukselle nimi:", defaultName);
+  }
+
+  confirmAbort() {
+    return window.confirm("Haluatko varmasti keskeyttää suunnistuksen?");
+  }
+
   render(state) {
     const course = state.course;
     const targets = getCourseTargets(course);
@@ -101,16 +119,21 @@ export class UI {
       ? formatDistance(course.plannedDistanceMeters)
       : "Ei rataa";
     this.elements.timerText.textContent = formatDuration(state.elapsedMillis);
-    this.elements.gameStatusText.textContent = statusLabel(state.status);
+    this.elements.gameStatusText.textContent = statusLabel(state);
     this.elements.gpsStatusText.textContent = gpsLabel(state.latestPosition, state.start);
     this.elements.nextTargetText.textContent =
-      state.status === GameStatus.finished ? "Valmis" : nextTarget?.label || "-";
+      state.status === GameStatus.finished
+        ? finishLabel(state.finishReason)
+        : nextTarget?.label || "-";
     this.elements.trackPointText.textContent = `${state.track.length} pistettä`;
     this.elements.visitedCountText.textContent = `${visitedCount}/${totalTargets}`;
     this.elements.finishText.textContent =
       state.status === GameStatus.finished ? formatDuration(state.elapsedMillis) : "-";
 
-    this.elements.startButton.disabled = !course || state.status === GameStatus.playing;
+    const isPlaying = state.status === GameStatus.playing;
+    this.elements.startButton.textContent = isPlaying ? "Lopeta peli" : "Aloita peli";
+    this.elements.startButton.classList.toggle("danger", isPlaying);
+    this.elements.startButton.disabled = !course;
     this.elements.generateButton.disabled = state.status === GameStatus.playing;
     this.elements.saveBlankButton.disabled = !course;
     this.elements.saveResultButton.disabled =
@@ -118,6 +141,34 @@ export class UI {
 
     this.renderControls(course, state);
     this.renderSplits(state);
+  }
+
+  renderSavedItems(items, preferredId = this.elements.savedItemsSelect.value) {
+    this.elements.savedItemsSelect.replaceChildren();
+
+    if (items.length === 0) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Ei tallennuksia";
+      this.elements.savedItemsSelect.append(option);
+      this.elements.savedCountText.textContent = "0 kpl";
+      this.elements.loadSavedButton.disabled = true;
+      return;
+    }
+
+    items.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${savedTypeLabel(item.type)}: ${item.name} (${formatDateTime(item.savedAt)})`;
+      this.elements.savedItemsSelect.append(option);
+    });
+
+    if (preferredId && items.some((item) => item.id === preferredId)) {
+      this.elements.savedItemsSelect.value = preferredId;
+    }
+
+    this.elements.savedCountText.textContent = `${items.length} kpl`;
+    this.elements.loadSavedButton.disabled = false;
   }
 
   renderControls(course, state) {
@@ -190,7 +241,11 @@ export class UI {
   }
 }
 
-function statusLabel(status) {
+function statusLabel(state) {
+  if (state.status === GameStatus.finished && state.finishReason === "aborted") {
+    return "Keskeytetty";
+  }
+
   const labels = {
     [GameStatus.planning]: "Suunnittelu",
     [GameStatus.ready]: "Rata valmis",
@@ -198,7 +253,35 @@ function statusLabel(status) {
     [GameStatus.finished]: "Maalissa",
   };
 
-  return labels[status] || "Valmiina";
+  return labels[state.status] || "Valmiina";
+}
+
+function finishLabel(reason) {
+  if (reason === "aborted") {
+    return "Keskeytetty";
+  }
+
+  return "Valmis";
+}
+
+function savedTypeLabel(type) {
+  if (type === "result") {
+    return "Reitti";
+  }
+
+  return "Rata";
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("fi-FI", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function gpsLabel(position, start) {

@@ -13,6 +13,12 @@ export const GameStatus = {
   finished: "finished",
 };
 
+export const FinishReason = {
+  completed: "completed",
+  aborted: "aborted",
+  loaded: "loaded",
+};
+
 export class OrienteeringGame {
   constructor({ onChange, onNotify } = {}) {
     this.onChange = onChange;
@@ -50,6 +56,40 @@ export class OrienteeringGame {
     this.emitChange();
   }
 
+  loadCourse(course) {
+    this.state = {
+      ...createInitialState(),
+      start: course?.start || null,
+      course,
+      status: course ? GameStatus.ready : GameStatus.planning,
+    };
+    this.emitChange();
+  }
+
+  loadResult(result) {
+    const startedAt = parseTime(result.startedAt);
+    const finishedAt = parseTime(result.finishedAt);
+    const track = Array.isArray(result.recordedRoute) ? result.recordedRoute : [];
+    const visits = Array.isArray(result.visits) ? result.visits : [];
+
+    this.state = {
+      ...createInitialState(),
+      status: GameStatus.finished,
+      start: result.course?.start || null,
+      course: result.course,
+      activeIndex: visits.length,
+      startedAt,
+      finishedAt: finishedAt || Date.now(),
+      lastSplitAt: finishedAt || startedAt,
+      visibleUntil: finishedAt || Date.now(),
+      latestPosition: track.at(-1) || null,
+      track,
+      visits,
+      finishReason: result.finishReason || FinishReason.loaded,
+    };
+    this.emitChange();
+  }
+
   start(currentPosition) {
     if (!this.state.course || this.state.status === GameStatus.playing) {
       return false;
@@ -77,6 +117,7 @@ export class OrienteeringGame {
     this.state.track = [];
     this.state.visibleUntil = null;
     this.state.latestPosition = currentPosition;
+    this.state.finishReason = null;
 
     this.recordPosition({ ...currentPosition, timestamp: now }, { force: true });
 
@@ -147,6 +188,7 @@ export class OrienteeringGame {
     if (target.type === "finish") {
       this.state.status = GameStatus.finished;
       this.state.finishedAt = now;
+      this.state.finishReason = FinishReason.completed;
       this.onNotify?.("Maali löytyi. Peli päättyi.");
     } else {
       const next = targets[this.state.activeIndex];
@@ -154,6 +196,28 @@ export class OrienteeringGame {
     }
 
     this.emitChange();
+  }
+
+  abort(currentPosition) {
+    if (this.state.status !== GameStatus.playing) {
+      return false;
+    }
+
+    const now = Date.now();
+    const position = currentPosition || this.state.latestPosition;
+
+    if (position) {
+      this.state.latestPosition = position;
+      this.recordPosition({ ...position, timestamp: now }, { force: true });
+    }
+
+    this.state.status = GameStatus.finished;
+    this.state.finishedAt = now;
+    this.state.finishReason = FinishReason.aborted;
+    this.state.visibleUntil = now;
+    this.onNotify?.("Suunnistus keskeytettiin. Reitti tähän saakka näytetään kartalla.");
+    this.emitChange();
+    return true;
   }
 
   getVisibleTrack() {
@@ -217,5 +281,15 @@ function createInitialState() {
     latestPosition: null,
     track: [],
     visits: [],
+    finishReason: null,
   };
+}
+
+function parseTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = typeof value === "number" ? value : Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }

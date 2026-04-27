@@ -2,7 +2,13 @@ import { generateCourse } from "./course.js";
 import { createManualPosition, GeoTracker } from "./geo.js";
 import { OrienteeringGame, GameStatus } from "./game.js";
 import { MapView } from "./mapView.js";
-import { saveBlankCourse, saveCompletedCourse } from "./storage.js";
+import {
+  getSavedItem,
+  listSavedItems,
+  saveBlankCourse,
+  saveCompletedCourse,
+  SavedItemType,
+} from "./storage.js";
 import { UI } from "./ui.js";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
@@ -14,7 +20,12 @@ window.addEventListener("DOMContentLoaded", () => {
     onNotify: (message) => ui.notify(message),
   });
   const mapView = new MapView("map", {
-    onTargetClick: (targetId) => game.handleTargetClick(targetId),
+    onTargetClick: (targetId) => {
+      game.handleTargetClick(targetId);
+      if (game.getState().status === GameStatus.finished) {
+        geoTracker.stop();
+      }
+    },
   });
   const geoTracker = new GeoTracker({
     onPosition: (position, options) => {
@@ -49,6 +60,7 @@ window.addEventListener("DOMContentLoaded", () => {
         game.setStart(position);
         mapView.setView(position, 16);
         mapView.showUserLocation(position);
+        geoTracker.start();
         ui.notify("Lähtöpiste asetettiin nykyiseen sijaintiin.");
       } catch (error) {
         ui.notify(error.message || "Paikannus ei onnistunut.");
@@ -76,6 +88,16 @@ window.addEventListener("DOMContentLoaded", () => {
       ui.notify("Rata luotu.");
     },
     onStart: async () => {
+      if (game.getState().status === GameStatus.playing) {
+        if (!ui.confirmAbort()) {
+          return;
+        }
+
+        game.abort(geoTracker.getLastPosition());
+        geoTracker.stop();
+        return;
+      }
+
       let position = geoTracker.getLastPosition();
 
       try {
@@ -96,18 +118,58 @@ window.addEventListener("DOMContentLoaded", () => {
     onSaveBlank: () => {
       const course = game.getState().course;
       if (course) {
-        saveBlankCourse(course);
-        ui.notify("Tyhjä rata tallennettiin JSON-tiedostoksi.");
+        const name = ui.askSaveName(defaultCourseName(course));
+        if (name === null) {
+          return;
+        }
+
+        const saved = saveBlankCourse(course, name);
+        refreshSavedItems(saved.id);
+        ui.notify(`Tyhjä rata tallennettiin selaimeen: ${saved.name}.`);
       }
     },
     onSaveResult: () => {
       const state = game.getState();
       if (state.course) {
-        saveCompletedCourse(state);
-        ui.notify("Suunnistettu rata tallennettiin JSON-tiedostoksi.");
+        const name = ui.askSaveName(defaultResultName(state));
+        if (name === null) {
+          return;
+        }
+
+        const saved = saveCompletedCourse(state, name);
+        refreshSavedItems(saved.id);
+        ui.notify(`Kuljettu reitti tallennettiin selaimeen: ${saved.name}.`);
       }
     },
+    onLoadSaved: (id) => {
+      const item = getSavedItem(id);
+      if (!item) {
+        ui.notify("Valittua tallennusta ei löytynyt.");
+        refreshSavedItems();
+        return;
+      }
+
+      if (game.getState().status === GameStatus.playing && !ui.confirmAbort()) {
+        return;
+      }
+
+      geoTracker.stop();
+
+      if (item.type === SavedItemType.result) {
+        game.loadResult(item.payload);
+      } else {
+        game.loadCourse(item.payload.course);
+      }
+
+      if (item.payload.course) {
+        mapView.fitCourse(item.payload.course);
+      }
+
+      ui.notify(`Tallennus ladattu: ${item.name}.`);
+    },
   });
+
+  refreshSavedItems();
 
   window.setInterval(() => {
     ui.render(game.getState());
@@ -127,4 +189,24 @@ window.addEventListener("DOMContentLoaded", () => {
     mapView.drawVisibleTrack(state.visibleTrack);
     ui.render(state);
   }
+
+  function refreshSavedItems(selectedId) {
+    ui.renderSavedItems(listSavedItems(), selectedId);
+  }
 });
+
+function defaultCourseName(course) {
+  const distanceKm = ((course?.plannedDistanceMeters || 0) / 1000)
+    .toFixed(1)
+    .replace(".", ",");
+  return `Rata ${distanceKm} km`;
+}
+
+function defaultResultName(state) {
+  const date = new Intl.DateTimeFormat("fi-FI", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
+  const suffix = state.finishReason === "aborted" ? "keskeytetty" : "suoritettu";
+  return `Reitti ${date} (${suffix})`;
+}

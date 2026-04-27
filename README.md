@@ -26,6 +26,6 @@ Oletuskarttana on OpenTopoMap, koska se toimii ilman avainta ja näyttää korke
 
 ## Tallennus
 
-`Tallenna tyhjä rata` vie radan ilman kuljettua reittiä. `Tallenna reitti` vie saman radan, GPS-jäljen ja rastikohtaiset väliajat JSON-muodossa.
+`Tallenna tyhjä rata` tallentaa radan selaimen omaan tallennustilaan ilman kuljettua reittiä. `Tallenna reitti` tallentaa saman radan, GPS-jäljen ja rastikohtaiset väliajat selaimeen. Tallennukselle annetaan nimi, ja mukaan tallentuu tallennushetken aikaleima. Tallennuksia voi ladata myöhemmin sovelluksen `Tallennukset`-osiosta.
 
-Pelin voi aloittaa vasta, kun GPS-sijainti on enintään 10 metrin päässä lähtöpisteestä. Löydetyn rastin karttamerkki täyttyy vihreäksi.
+Pelin voi aloittaa vasta, kun GPS-sijainti on enintään 10 metrin päässä lähtöpisteestä. Oma sijainti näkyy kartalla aloitukseen saakka ja piilotetaan pelin käynnistyessä. Pelin voi myös keskeyttää `Lopeta peli` -painikkeella, jolloin sovellus varmistaa keskeytyksen ja näyttää siihen saakka kuljetun reitin. Löydetyn rastin karttamerkki täyttyy vihreäksi.
