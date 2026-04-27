@@ -13,6 +13,10 @@ export class UI {
       centerStartButton: document.querySelector("#centerStartButton"),
       generateButton: document.querySelector("#generateButton"),
       startButton: document.querySelector("#startButton"),
+      floatingAbortButton: document.querySelector("#floatingAbortButton"),
+      abortModal: document.querySelector("#abortModal"),
+      abortCancelButton: document.querySelector("#abortCancelButton"),
+      abortConfirmButton: document.querySelector("#abortConfirmButton"),
       saveBlankButton: document.querySelector("#saveBlankButton"),
       saveResultButton: document.querySelector("#saveResultButton"),
       savedCountText: document.querySelector("#savedCountText"),
@@ -61,6 +65,7 @@ export class UI {
       actions.onGenerate?.(this.getCourseSettings()),
     );
     this.elements.startButton.addEventListener("click", () => actions.onStart?.());
+    this.elements.floatingAbortButton.addEventListener("click", () => actions.onStart?.());
     this.elements.saveBlankButton.addEventListener("click", () =>
       actions.onSaveBlank?.(),
     );
@@ -105,7 +110,45 @@ export class UI {
   }
 
   confirmAbort() {
-    return window.confirm("Haluatko varmasti keskeyttää suunnistuksen?");
+    return new Promise((resolve) => {
+      const modal = this.elements.abortModal;
+      const cancelButton = this.elements.abortCancelButton;
+      const confirmButton = this.elements.abortConfirmButton;
+      const previousFocus = document.activeElement;
+
+      const cleanup = (result) => {
+        modal.hidden = true;
+        document.body.classList.remove("has-modal");
+        cancelButton.removeEventListener("click", onCancel);
+        confirmButton.removeEventListener("click", onConfirm);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKeyDown);
+        previousFocus?.focus?.();
+        resolve(result);
+      };
+
+      const onCancel = () => cleanup(false);
+      const onConfirm = () => cleanup(true);
+      const onBackdrop = (event) => {
+        if (event.target === modal) {
+          cleanup(false);
+        }
+      };
+      const onKeyDown = (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          cleanup(false);
+        }
+      };
+
+      modal.hidden = false;
+      document.body.classList.add("has-modal");
+      cancelButton.addEventListener("click", onCancel);
+      confirmButton.addEventListener("click", onConfirm);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKeyDown);
+      cancelButton.focus();
+    });
   }
 
   render(state) {
@@ -131,9 +174,11 @@ export class UI {
       state.status === GameStatus.finished ? formatDuration(state.elapsedMillis) : "-";
 
     const isPlaying = state.status === GameStatus.playing;
+    document.body.classList.toggle("is-playing", isPlaying);
     this.elements.startButton.textContent = isPlaying ? "Lopeta peli" : "Aloita peli";
     this.elements.startButton.classList.toggle("danger", isPlaying);
     this.elements.startButton.disabled = !course;
+    this.elements.floatingAbortButton.hidden = !isPlaying;
     this.elements.generateButton.disabled = state.status === GameStatus.playing;
     this.elements.saveBlankButton.disabled = !course;
     this.elements.saveResultButton.disabled =

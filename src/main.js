@@ -89,7 +89,7 @@ window.addEventListener("DOMContentLoaded", () => {
     },
     onStart: async () => {
       if (game.getState().status === GameStatus.playing) {
-        if (!ui.confirmAbort()) {
+        if (!(await ui.confirmAbort())) {
           return;
         }
 
@@ -141,7 +141,7 @@ window.addEventListener("DOMContentLoaded", () => {
         ui.notify(`Kuljettu reitti tallennettiin selaimeen: ${saved.name}.`);
       }
     },
-    onLoadSaved: (id) => {
+    onLoadSaved: async (id) => {
       const item = getSavedItem(id);
       if (!item) {
         ui.notify("Valittua tallennusta ei löytynyt.");
@@ -149,7 +149,7 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (game.getState().status === GameStatus.playing && !ui.confirmAbort()) {
+      if (game.getState().status === GameStatus.playing && !(await ui.confirmAbort())) {
         return;
       }
 
@@ -188,6 +188,7 @@ window.addEventListener("DOMContentLoaded", () => {
     mapView.drawCourse(state.course, state);
     mapView.drawVisibleTrack(state.visibleTrack);
     ui.render(state);
+    window.requestAnimationFrame(() => mapView.refreshSize());
   }
 
   function refreshSavedItems(selectedId) {

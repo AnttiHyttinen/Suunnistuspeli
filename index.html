@@ -160,8 +160,37 @@
 
       <main class="map-area" aria-label="Kartta">
         <div id="map"></div>
+        <button id="floatingAbortButton" class="map-abort-button" type="button" hidden>
+          Lopeta peli
+        </button>
         <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
       </main>
+
+      <div
+        id="abortModal"
+        class="modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="abortModalTitle"
+        hidden
+      >
+        <div class="modal-card">
+          <div class="modal-symbol" aria-hidden="true">
+            <span></span>
+          </div>
+          <h2 id="abortModalTitle">Keskeytetäänkö suunnistus?</h2>
+          <p>
+            Reitti tähän asti tallennetaan peliin ja näytetään kartalla. Voit silti tallentaa
+            suorituksen selaimeen.
+          </p>
+          <div class="modal-actions">
+            <button id="abortCancelButton" class="secondary" type="button">Jatka peliä</button>
+            <button id="abortConfirmButton" class="primary danger" type="button">
+              Keskeytä
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </body>
 </html>
