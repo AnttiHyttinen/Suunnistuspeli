@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Suunnistuspeli</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script
+      defer
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-panel" aria-label="Pelin hallinta">
+        <header class="app-header">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+          </div>
+          <div>
+            <h1>Suunnistuspeli</h1>
+            <p>Rata, rastit ja GPS-jälki</p>
+          </div>
+        </header>
+
+        <section class="panel-section">
+          <div class="section-heading">
+            <h2>Radan asetukset</h2>
+            <span id="courseDistanceBadge">Ei rataa</span>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Pituus</span>
+              <span class="input-with-unit">
+                <input id="distanceInput" type="number" min="0.1" max="20" step="0.1" value="1.2" />
+                <span>km</span>
+              </span>
+            </label>
+
+            <label class="field">
+              <span>Rasteja</span>
+              <input id="controlCountInput" type="number" min="1" max="24" step="1" value="5" />
+            </label>
+          </div>
+
+          <fieldset class="difficulty-field">
+            <legend>Vaikeustaso</legend>
+            <div class="segmented" id="difficultyButtons">
+              <button type="button" class="selected" data-difficulty="1">1</button>
+              <button type="button" data-difficulty="2">2</button>
+              <button type="button" data-difficulty="3">3</button>
+            </div>
+          </fieldset>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Kartta</span>
+              <select id="mapLayerSelect">
+                <option value="openTopo" selected>OpenTopoMap</option>
+                <option value="mmlTopo">MML Maastokartta</option>
+                <option value="osm">OpenStreetMap</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>MML API-avain</span>
+              <input id="mmlApiKeyInput" type="password" autocomplete="off" placeholder="api-key" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="locateButton" type="button" class="secondary">Paikanna lähtö</button>
+            <button id="centerStartButton" type="button" class="ghost">Käytä keskikohtaa</button>
+          </div>
+
+          <div class="button-row">
+            <button id="generateButton" type="button" class="primary">Luo rata</button>
+            <button id="startButton" type="button" class="primary strong" disabled>Aloita peli</button>
+          </div>
+        </section>
+
+        <section class="panel-section status-section">
+          <div class="section-heading">
+            <h2>Tilanne</h2>
+            <span id="timerText">00:00</span>
+          </div>
+          <dl class="status-grid">
+            <div>
+              <dt>Tila</dt>
+              <dd id="gameStatusText">Valmiina</dd>
+            </div>
+            <div>
+              <dt>GPS</dt>
+              <dd id="gpsStatusText">Ei sijaintia</dd>
+            </div>
+            <div>
+              <dt>Seuraava</dt>
+              <dd id="nextTargetText">-</dd>
+            </div>
+            <div>
+              <dt>Jälki</dt>
+              <dd id="trackPointText">0 pistettä</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel-section controls-section">
+          <div class="section-heading">
+            <h2>Rastit</h2>
+            <span id="visitedCountText">0/0</span>
+          </div>
+          <ol id="controlsList" class="control-list"></ol>
+        </section>
+
+        <section class="panel-section splits-section">
+          <div class="section-heading">
+            <h2>Väliajat</h2>
+            <span id="finishText">-</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Rasti</th>
+                  <th>Väliaika</th>
+                  <th>Kokonaika</th>
+                </tr>
+              </thead>
+              <tbody id="splitsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section save-section">
+          <div class="button-row">
+            <button id="saveBlankButton" type="button" class="secondary" disabled>Tallenna tyhjä rata</button>
+            <button id="saveResultButton" type="button" class="secondary" disabled>Tallenna reitti</button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="map-area" aria-label="Kartta">
+        <div id="map"></div>
+        <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      </main>
+    </div>
+  </body>
+</html>
