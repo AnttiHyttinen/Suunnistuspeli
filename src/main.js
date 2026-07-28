@@ -1,15 +1,15 @@
-import { generateCourse } from "./course.js";
-import { createManualPosition, GeoTracker } from "./geo.js";
-import { OrienteeringGame, GameStatus } from "./game.js";
-import { MapView } from "./mapView.js";
+import { generateCourse } from "./course.js?v=4";
+import { createManualPosition, GeoTracker } from "./geo.js?v=4";
+import { OrienteeringGame, GameStatus } from "./game.js?v=4";
+import { MapView } from "./mapView.js?v=4";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js";
-import { UI } from "./ui.js";
+} from "./storage.js?v=4";
+import { UI } from "./ui.js?v=4";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
 
@@ -115,10 +115,10 @@ window.addEventListener("DOMContentLoaded", () => {
       mapView.hideUserLocation();
       geoTracker.start();
     },
-    onSaveBlank: () => {
+    onSaveBlank: async () => {
       const course = game.getState().course;
       if (course) {
-        const name = ui.askSaveName(defaultCourseName(course));
+        const name = await ui.askSaveName(defaultCourseName(course));
         if (name === null) {
           return;
         }
@@ -128,10 +128,10 @@ window.addEventListener("DOMContentLoaded", () => {
         ui.notify(`Tyhjä rata tallennettiin selaimeen: ${saved.name}.`);
       }
     },
-    onSaveResult: () => {
+    onSaveResult: async () => {
       const state = game.getState();
       if (state.course) {
-        const name = ui.askSaveName(defaultResultName(state));
+        const name = await ui.askSaveName(defaultResultName(state));
         if (name === null) {
           return;
         }

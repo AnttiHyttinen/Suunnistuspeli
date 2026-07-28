@@ -1,4 +1,11 @@
-import { formatDistance, formatDuration, getCourseTargets } from "./course.js";
+import {
+  distanceMeters,
+  formatDistance,
+  formatDuration,
+  getCourseTargets,
+  routeDistanceMeters,
+} from "./course.js";
+import { START_RADIUS_METERS } from "./config.js";
 import { GameStatus } from "./game.js";
 
 export class UI {
@@ -13,10 +20,25 @@ export class UI {
       centerStartButton: document.querySelector("#centerStartButton"),
       generateButton: document.querySelector("#generateButton"),
       startButton: document.querySelector("#startButton"),
+      headerStatePill: document.querySelector("#headerStatePill"),
+      startPointText: document.querySelector("#startPointText"),
+      startReadinessText: document.querySelector("#startReadinessText"),
       floatingAbortButton: document.querySelector("#floatingAbortButton"),
+      mapInfo: document.querySelector("#mapInfo"),
+      mapInfoTitle: document.querySelector("#mapInfoTitle"),
+      mapInfoText: document.querySelector("#mapInfoText"),
+      playHud: document.querySelector("#playHud"),
+      hudTimerText: document.querySelector("#hudTimerText"),
+      hudNextTargetText: document.querySelector("#hudNextTargetText"),
+      hudProgressText: document.querySelector("#hudProgressText"),
+      hudProgressBar: document.querySelector("#hudProgressBar"),
       abortModal: document.querySelector("#abortModal"),
       abortCancelButton: document.querySelector("#abortCancelButton"),
       abortConfirmButton: document.querySelector("#abortConfirmButton"),
+      saveModal: document.querySelector("#saveModal"),
+      saveNameInput: document.querySelector("#saveNameInput"),
+      saveCancelButton: document.querySelector("#saveCancelButton"),
+      saveConfirmButton: document.querySelector("#saveConfirmButton"),
       saveBlankButton: document.querySelector("#saveBlankButton"),
       saveResultButton: document.querySelector("#saveResultButton"),
       savedCountText: document.querySelector("#savedCountText"),
@@ -29,9 +51,16 @@ export class UI {
       nextTargetText: document.querySelector("#nextTargetText"),
       trackPointText: document.querySelector("#trackPointText"),
       visitedCountText: document.querySelector("#visitedCountText"),
+      sidebarProgressBar: document.querySelector("#sidebarProgressBar"),
       controlsList: document.querySelector("#controlsList"),
       splitsTableBody: document.querySelector("#splitsTableBody"),
       finishText: document.querySelector("#finishText"),
+      resultSummary: document.querySelector("#resultSummary"),
+      resultTitle: document.querySelector("#resultTitle"),
+      resultTimeText: document.querySelector("#resultTimeText"),
+      resultDistanceText: document.querySelector("#resultDistanceText"),
+      resultControlsText: document.querySelector("#resultControlsText"),
+      resultLead: document.querySelector("#resultLead"),
       toast: document.querySelector("#toast"),
     };
     this.toastTimer = null;
@@ -106,7 +135,57 @@ export class UI {
   }
 
   askSaveName(defaultName) {
-    return window.prompt("Anna tallennukselle nimi:", defaultName);
+    return new Promise((resolve) => {
+      const modal = this.elements.saveModal;
+      const input = this.elements.saveNameInput;
+      const cancelButton = this.elements.saveCancelButton;
+      const confirmButton = this.elements.saveConfirmButton;
+      const previousFocus = document.activeElement;
+
+      const cleanup = (result) => {
+        modal.hidden = true;
+        document.body.classList.remove("has-modal");
+        cancelButton.removeEventListener("click", onCancel);
+        confirmButton.removeEventListener("click", onConfirm);
+        modal.removeEventListener("click", onBackdrop);
+        input.removeEventListener("keydown", onInputKeyDown);
+        document.removeEventListener("keydown", onKeyDown);
+        previousFocus?.focus?.();
+        resolve(result);
+      };
+
+      const submit = () => cleanup(input.value.trim() || defaultName);
+      const onCancel = () => cleanup(null);
+      const onConfirm = () => submit();
+      const onBackdrop = (event) => {
+        if (event.target === modal) {
+          cleanup(null);
+        }
+      };
+      const onInputKeyDown = (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submit();
+        }
+      };
+      const onKeyDown = (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          cleanup(null);
+        }
+      };
+
+      input.value = defaultName;
+      modal.hidden = false;
+      document.body.classList.add("has-modal");
+      cancelButton.addEventListener("click", onCancel);
+      confirmButton.addEventListener("click", onConfirm);
+      modal.addEventListener("click", onBackdrop);
+      input.addEventListener("keydown", onInputKeyDown);
+      document.addEventListener("keydown", onKeyDown);
+      input.focus();
+      input.select();
+    });
   }
 
   confirmAbort() {
@@ -157,12 +236,18 @@ export class UI {
     const nextTarget = targets[state.activeIndex];
     const visitedCount = state.visits.length;
     const totalTargets = targets.length;
+    const progressPercent =
+      totalTargets > 0 ? Math.min(100, (visitedCount / totalTargets) * 100) : 0;
+    const isPlaying = state.status === GameStatus.playing;
+    const isFinished = state.status === GameStatus.finished;
+    const status = statusLabel(state);
 
     this.elements.courseDistanceBadge.textContent = course
       ? formatDistance(course.plannedDistanceMeters)
       : "Ei rataa";
     this.elements.timerText.textContent = formatDuration(state.elapsedMillis);
-    this.elements.gameStatusText.textContent = statusLabel(state);
+    this.elements.headerStatePill.textContent = status;
+    this.elements.gameStatusText.textContent = status;
     this.elements.gpsStatusText.textContent = gpsLabel(state.latestPosition, state.start);
     this.elements.nextTargetText.textContent =
       state.status === GameStatus.finished
@@ -171,21 +256,108 @@ export class UI {
     this.elements.trackPointText.textContent = `${state.track.length} pistettä`;
     this.elements.visitedCountText.textContent = `${visitedCount}/${totalTargets}`;
     this.elements.finishText.textContent =
-      state.status === GameStatus.finished ? formatDuration(state.elapsedMillis) : "-";
+      isFinished ? formatDuration(state.elapsedMillis) : "-";
+    this.elements.sidebarProgressBar.style.width = `${progressPercent}%`;
 
-    const isPlaying = state.status === GameStatus.playing;
     document.body.classList.toggle("is-playing", isPlaying);
-    this.elements.startButton.textContent = isPlaying ? "Lopeta peli" : "Aloita peli";
-    this.elements.startButton.classList.toggle("danger", isPlaying);
+    document.body.classList.toggle("is-finished", isFinished);
+    this.elements.startButton.textContent = "Aloita suunnistus";
     this.elements.startButton.disabled = !course;
+    this.elements.playHud.hidden = !isPlaying;
     this.elements.floatingAbortButton.hidden = !isPlaying;
+    this.elements.mapInfo.hidden = isPlaying;
     this.elements.generateButton.disabled = state.status === GameStatus.playing;
     this.elements.saveBlankButton.disabled = !course;
     this.elements.saveResultButton.disabled =
       !course || (state.track.length === 0 && state.visits.length === 0);
 
+    this.renderStartState(state);
+    this.renderMapInfo(state);
+    this.renderPlayHud(state, nextTarget, visitedCount, totalTargets, progressPercent);
+    this.renderResult(state, visitedCount, totalTargets);
     this.renderControls(course, state);
     this.renderSplits(state);
+  }
+
+  renderStartState(state) {
+    const source = state.start?.source;
+    this.elements.startPointText.textContent = source
+      ? `Lähtö asetettu (${source})`
+      : "Lähtöpistettä ei ole valittu";
+
+    if (!state.course) {
+      this.elements.startReadinessText.textContent = "Luo ensin rata";
+      return;
+    }
+
+    if (!state.latestPosition) {
+      this.elements.startReadinessText.textContent = "Paikanna itsesi ennen aloitusta";
+      return;
+    }
+
+    const distance = distanceMeters(state.latestPosition, state.course.start);
+    this.elements.startReadinessText.textContent =
+      distance <= START_RADIUS_METERS
+        ? "Olet lähtöpisteessä, valmiina lähtöön"
+        : `${formatDistance(distance)} lähtöpisteeseen`;
+  }
+
+  renderMapInfo(state) {
+    if (state.status === GameStatus.finished) {
+      this.elements.mapInfoTitle.textContent =
+        state.finishReason === "aborted" ? "Suunnistus keskeytetty" : "Suoritus valmis";
+      this.elements.mapInfoText.textContent = `${formatDuration(state.elapsedMillis)} · ${formatDistance(
+        routeDistanceMeters(state.track),
+      )} kuljettu`;
+      return;
+    }
+
+    if (state.course) {
+      const controlCount = state.course.controls?.length || 0;
+      this.elements.mapInfoTitle.textContent = `${formatDistance(
+        state.course.plannedDistanceMeters,
+      )} rata valmis`;
+      this.elements.mapInfoText.textContent = `${controlCount} rastia ja maali · siirry lähtöpisteeseen`;
+      return;
+    }
+
+    if (state.start) {
+      this.elements.mapInfoTitle.textContent = "Lähtöpiste asetettu";
+      this.elements.mapInfoText.textContent = "Valitse radan pituus ja rastien määrä.";
+      return;
+    }
+
+    this.elements.mapInfoTitle.textContent = "Valitse lähtöpiste";
+    this.elements.mapInfoText.textContent =
+      "Paikanna itsesi tai käytä kartan keskikohtaa.";
+  }
+
+  renderPlayHud(state, nextTarget, visitedCount, totalTargets, progressPercent) {
+    this.elements.hudTimerText.textContent = formatDuration(state.elapsedMillis);
+    this.elements.hudNextTargetText.textContent = nextTarget?.label || "Maali";
+    this.elements.hudProgressText.textContent = `${visitedCount}/${totalTargets} käyty`;
+    this.elements.hudProgressBar.style.width = `${progressPercent}%`;
+  }
+
+  renderResult(state, visitedCount, totalTargets) {
+    const isFinished = state.status === GameStatus.finished;
+    this.elements.resultSummary.hidden = !isFinished;
+    if (!isFinished) {
+      return;
+    }
+
+    const aborted = state.finishReason === "aborted";
+    this.elements.resultTitle.textContent = aborted
+      ? "Suunnistus keskeytettiin"
+      : "Maali löytyi";
+    this.elements.resultTimeText.textContent = formatDuration(state.elapsedMillis);
+    this.elements.resultDistanceText.textContent = formatDistance(
+      routeDistanceMeters(state.track),
+    );
+    this.elements.resultControlsText.textContent = `${visitedCount}/${totalTargets}`;
+    this.elements.resultLead.textContent = aborted
+      ? "Reitti keskeytykseen saakka näkyy kartalla ja voidaan tallentaa."
+      : "Hieno suoritus. Koko kuljettu reitti näkyy nyt kartalla.";
   }
 
   renderSavedItems(items, preferredId = this.elements.savedItemsSelect.value) {

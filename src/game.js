@@ -138,7 +138,7 @@ export class OrienteeringGame {
 
   handleTargetClick(targetId) {
     if (this.state.status !== GameStatus.playing) {
-      this.onNotify?.("Aloita peli ennen rastien kuittaamista.");
+      this.onNotify?.("Aloita suunnistus ennen rastien kuittaamista.");
       return;
     }
 
