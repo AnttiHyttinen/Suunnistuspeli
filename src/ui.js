@@ -26,6 +26,12 @@ export class UI {
       startPointText: document.querySelector("#startPointText"),
       startReadinessText: document.querySelector("#startReadinessText"),
       floatingAbortButton: document.querySelector("#floatingAbortButton"),
+      mapRotationControls: document.querySelector("#mapRotationControls"),
+      rotateMapLeftButton: document.querySelector("#rotateMapLeftButton"),
+      resetMapRotationButton: document.querySelector("#resetMapRotationButton"),
+      rotateMapRightButton: document.querySelector("#rotateMapRightButton"),
+      mapCompassNeedle: document.querySelector("#mapCompassNeedle"),
+      mapBearingText: document.querySelector("#mapBearingText"),
       mapInfo: document.querySelector("#mapInfo"),
       mapInfoTitle: document.querySelector("#mapInfoTitle"),
       mapInfoText: document.querySelector("#mapInfoText"),
@@ -100,6 +106,15 @@ export class UI {
     );
     this.elements.startButton.addEventListener("click", () => actions.onStart?.());
     this.elements.floatingAbortButton.addEventListener("click", () => actions.onStart?.());
+    this.elements.rotateMapLeftButton.addEventListener("click", () =>
+      actions.onRotateMapLeft?.(),
+    );
+    this.elements.resetMapRotationButton.addEventListener("click", () =>
+      actions.onResetMapRotation?.(),
+    );
+    this.elements.rotateMapRightButton.addEventListener("click", () =>
+      actions.onRotateMapRight?.(),
+    );
     this.elements.saveBlankButton.addEventListener("click", () =>
       actions.onSaveBlank?.(),
     );
@@ -133,6 +148,20 @@ export class UI {
 
   setMapLayer(value) {
     this.elements.mapLayerSelect.value = value;
+  }
+
+  setMapRotationAvailable(available) {
+    this.elements.mapRotationControls.hidden = !available;
+  }
+
+  setMapBearing(bearing) {
+    const normalized = Math.round(((Number(bearing) % 360) + 360) % 360);
+    this.elements.mapBearingText.textContent = `${normalized}°`;
+    this.elements.mapCompassNeedle.style.transform = `rotate(${-normalized}deg)`;
+    this.elements.resetMapRotationButton.setAttribute(
+      "aria-label",
+      `Palauta pohjoinen ylös. Kartan suunta ${normalized} astetta`,
+    );
   }
 
   getSelectedSavedId() {
@@ -279,6 +308,10 @@ export class UI {
       : "Muokkaa rataa";
     this.elements.editCourseButton.classList.toggle("is-active", isEditing);
     this.elements.courseEditHint.hidden = !isEditing;
+    this.elements.mapRotationControls.classList.toggle("is-disabled", isEditing);
+    this.elements.rotateMapLeftButton.disabled = isEditing;
+    this.elements.resetMapRotationButton.disabled = isEditing;
+    this.elements.rotateMapRightButton.disabled = isEditing;
     this.elements.saveBlankButton.disabled = !course || isEditing;
     this.elements.saveResultButton.disabled =
       !course || (state.track.length === 0 && state.visits.length === 0);

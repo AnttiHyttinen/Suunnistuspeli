@@ -4,12 +4,30 @@ import { getCourseRoute, getCourseTargets } from "./course.js";
 const COURSE_PURPLE = "#b000b8";
 
 export class MapView {
-  constructor(elementId, { onTargetClick, onCoursePointMove } = {}) {
+  constructor(
+    elementId,
+    {
+      initialBearing = 0,
+      onBearingChange,
+      onTargetClick,
+      onCoursePointMove,
+    } = {},
+  ) {
+    this.onBearingChange = onBearingChange;
     this.onTargetClick = onTargetClick;
     this.onCoursePointMove = onCoursePointMove;
+    this.rotationSupported = typeof L.Map.prototype.setBearing === "function";
+    this.courseEditingActive = false;
+    this.bearingBeforeCourseEditing = 0;
+    this.touchRotateWasEnabled = false;
     this.map = L.map(elementId, {
       zoomControl: true,
       preferCanvas: true,
+      rotate: this.rotationSupported,
+      bearing: normalizeBearing(initialBearing),
+      touchRotate: this.rotationSupported,
+      shiftKeyRotate: this.rotationSupported,
+      rotateControl: false,
     }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 14);
 
     this.baseLayer = null;
@@ -18,7 +36,62 @@ export class MapView {
     this.courseLayer = L.layerGroup().addTo(this.map);
     this.trackLayer = L.layerGroup().addTo(this.map);
     this.userLayer = L.layerGroup().addTo(this.map);
+    if (this.rotationSupported) {
+      this.map.on("rotate", () => this.emitBearingChange(false));
+      this.map.on("rotateend", () => this.emitBearingChange(true));
+    }
     this.setBaseLayer("openTopo");
+  }
+
+  supportsRotation() {
+    return this.rotationSupported;
+  }
+
+  getBearing() {
+    if (!this.rotationSupported) {
+      return 0;
+    }
+
+    return normalizeBearing(this.map.getBearing());
+  }
+
+  setBearing(bearing, { committed = true } = {}) {
+    if (!this.rotationSupported) {
+      return false;
+    }
+
+    this.map.setBearing(normalizeBearing(bearing));
+    this.emitBearingChange(committed);
+    return true;
+  }
+
+  rotateBy(degrees) {
+    return this.setBearing(this.getBearing() + degrees);
+  }
+
+  emitBearingChange(committed) {
+    this.onBearingChange?.(this.getBearing(), { committed });
+  }
+
+  setCourseEditing(active) {
+    const nextActive = Boolean(active);
+    if (!this.rotationSupported || nextActive === this.courseEditingActive) {
+      return;
+    }
+
+    this.courseEditingActive = nextActive;
+    if (nextActive) {
+      this.bearingBeforeCourseEditing = this.getBearing();
+      this.touchRotateWasEnabled = Boolean(this.map.touchRotate?.enabled?.());
+      this.map.touchRotate?.disable?.();
+      this.setBearing(0, { committed: false });
+      return;
+    }
+
+    if (this.touchRotateWasEnabled) {
+      this.map.touchRotate?.enable?.();
+    }
+    this.setBearing(this.bearingBeforeCourseEditing, { committed: false });
   }
 
   setBaseLayer(layerKey, apiKey = "") {
@@ -93,12 +166,18 @@ export class MapView {
       lineJoin: "round",
     }).addTo(this.courseLayer);
 
+    const startClassName = [
+      state.startedAt ? "visited" : "",
+      state.editingCourse ? "editing" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     const startMarker = L.marker([course.start.lat, course.start.lng], {
-      icon: createStartIcon(),
+      icon: createStartIcon(startClassName),
       pane: "coursePane",
       zIndexOffset: 500,
       draggable: state.editingCourse,
-      autoPan: true,
+      autoPan: false,
       title: state.editingCourse ? "Raahaa lähtöpistettä" : "Lähtö",
       alt: "Lähtö",
     }).addTo(this.courseLayer);
@@ -113,6 +192,7 @@ export class MapView {
         target.type === "finish" ? "finish" : "",
         isVisited ? "visited" : "",
         isActive ? "active" : "",
+        state.editingCourse ? "editing" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -125,7 +205,7 @@ export class MapView {
         pane: "coursePane",
         zIndexOffset: isActive ? 800 : 600,
         draggable: state.editingCourse,
-        autoPan: true,
+        autoPan: false,
         title: state.editingCourse ? `Raahaa: ${target.label}` : target.label,
         alt: target.label,
       }).addTo(this.courseLayer);
@@ -143,12 +223,110 @@ export class MapView {
       return;
     }
 
+    let dragActive = false;
+    let interactionPrepared = false;
+    let pointMoved = false;
+    let latestLatLng = null;
+    let suspendedHandlers = [];
+
+    const suspendHandler = (handler) => {
+      const wasEnabled = Boolean(handler?.enabled?.());
+      if (wasEnabled) {
+        handler.disable();
+      }
+      return { handler, wasEnabled };
+    };
+
+    const restoreMapGestures = () => {
+      suspendedHandlers.forEach(({ handler, wasEnabled }) => {
+        if (wasEnabled) {
+          handler?.enable?.();
+        }
+      });
+      suspendedHandlers = [];
+      this.map.getContainer().classList.remove("is-course-point-dragging");
+    };
+
+    const removeDocumentListeners = () => {
+      document.removeEventListener("pointerup", finishDrag);
+      document.removeEventListener("pointercancel", finishDrag);
+      document.removeEventListener("mouseup", finishDrag);
+      document.removeEventListener("touchend", finishDrag);
+      document.removeEventListener("touchcancel", finishDrag);
+    };
+
+    const finishDrag = () => {
+      if (!interactionPrepared && !dragActive) {
+        return;
+      }
+
+      const shouldCommit = dragActive && pointMoved && latestLatLng;
+      dragActive = false;
+      interactionPrepared = false;
+      marker.getElement()?.classList.remove("is-dragging");
+      removeDocumentListeners();
+      restoreMapGestures();
+
+      if (!shouldCommit) {
+        return;
+      }
+
+      this.onCoursePointMove?.(point.id, {
+        lat: latestLatLng.lat,
+        lng: latestLatLng.lng,
+      });
+    };
+
+    const prepareInteraction = (event) => {
+      if (interactionPrepared) {
+        return;
+      }
+
+      interactionPrepared = true;
+      event?.stopPropagation?.();
+      this.map.getContainer().classList.add("is-course-point-dragging");
+      suspendedHandlers = [
+        suspendHandler(this.map.dragging),
+        suspendHandler(this.map.touchZoom),
+        suspendHandler(this.map.touchRotate),
+      ];
+      document.addEventListener("pointerup", finishDrag, { once: true });
+      document.addEventListener("pointercancel", finishDrag, { once: true });
+      document.addEventListener("mouseup", finishDrag, { once: true });
+      document.addEventListener("touchend", finishDrag, { once: true, passive: true });
+      document.addEventListener("touchcancel", finishDrag, {
+        once: true,
+        passive: true,
+      });
+    };
+
+    const markerElement = marker.getElement();
+    markerElement?.classList.add("is-touch-draggable");
+    markerElement?.addEventListener("pointerdown", prepareInteraction, {
+      capture: true,
+      passive: true,
+    });
+    markerElement?.addEventListener("touchstart", prepareInteraction, {
+      capture: true,
+      passive: true,
+    });
+    markerElement?.addEventListener("mousedown", prepareInteraction, {
+      capture: true,
+      passive: true,
+    });
+
     marker.on("dragstart", () => {
+      prepareInteraction();
+      dragActive = true;
+      pointMoved = false;
+      latestLatLng = marker.getLatLng();
       marker.getElement()?.classList.add("is-dragging");
     });
 
     marker.on("drag", (event) => {
       const latLng = event.target.getLatLng();
+      pointMoved = true;
+      latestLatLng = latLng;
       const draggedRoute = getCourseRoute(course).map((routePoint) =>
         routePoint.id === point.id
           ? [latLng.lat, latLng.lng]
@@ -157,13 +335,13 @@ export class MapView {
       routeLine.setLatLngs(draggedRoute);
     });
 
-    marker.on("dragend", (event) => {
-      marker.getElement()?.classList.remove("is-dragging");
-      const latLng = event.target.getLatLng();
-      this.onCoursePointMove?.(point.id, {
-        lat: latLng.lat,
-        lng: latLng.lng,
-      });
+    marker.on("dragend", finishDrag);
+    marker.on("remove", () => {
+      markerElement?.removeEventListener("pointerdown", prepareInteraction, true);
+      markerElement?.removeEventListener("touchstart", prepareInteraction, true);
+      markerElement?.removeEventListener("mousedown", prepareInteraction, true);
+      removeDocumentListeners();
+      restoreMapGestures();
     });
   }
 
@@ -202,48 +380,51 @@ export class MapView {
   }
 }
 
-function createStartIcon() {
-  const size = 52;
+function createStartIcon(className = "") {
+  const symbolSize = 52;
+  const iconSize = className.includes("editing") ? 64 : symbolSize;
   return L.divIcon({
     className: "course-marker",
     html: `
-      <svg class="course-symbol course-symbol-start" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+      <svg class="course-symbol course-symbol-start ${escapeHtml(className)}" width="${symbolSize}" height="${symbolSize}" viewBox="0 0 ${symbolSize} ${symbolSize}" aria-hidden="true">
         <polygon points="26,6 48,44 4,44"></polygon>
       </svg>
     `,
-    iconSize: [size, size],
-    iconAnchor: [26, 30],
+    iconSize: [iconSize, iconSize],
+    iconAnchor: [iconSize / 2, iconSize / 2 + 4],
   });
 }
 
 function createControlIcon(label, className = "") {
-  const size = className.includes("active") ? 54 : 48;
+  const symbolSize = className.includes("active") ? 54 : 48;
+  const iconSize = className.includes("editing") ? 62 : symbolSize;
   const radius = className.includes("active") ? 19 : 17;
   return L.divIcon({
     className: "course-marker",
     html: `
-      <svg class="course-symbol course-symbol-control ${escapeHtml(className)}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
-        <circle cx="${size / 2}" cy="${size / 2}" r="${radius}"></circle>
-        <text x="${size / 2}" y="${size / 2 + 5}" text-anchor="middle">${escapeHtml(label)}</text>
+      <svg class="course-symbol course-symbol-control ${escapeHtml(className)}" width="${symbolSize}" height="${symbolSize}" viewBox="0 0 ${symbolSize} ${symbolSize}" aria-hidden="true">
+        <circle cx="${symbolSize / 2}" cy="${symbolSize / 2}" r="${radius}"></circle>
+        <text x="${symbolSize / 2}" y="${symbolSize / 2 + 5}" text-anchor="middle">${escapeHtml(label)}</text>
       </svg>
     `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconSize: [iconSize, iconSize],
+    iconAnchor: [iconSize / 2, iconSize / 2],
   });
 }
 
 function createFinishIcon(className = "") {
-  const size = className.includes("active") ? 58 : 52;
+  const symbolSize = className.includes("active") ? 58 : 52;
+  const iconSize = className.includes("editing") ? 64 : symbolSize;
   return L.divIcon({
     className: "course-marker",
     html: `
-      <svg class="course-symbol course-symbol-finish ${escapeHtml(className)}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
-        <circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.32}"></circle>
-        <circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.22}"></circle>
+      <svg class="course-symbol course-symbol-finish ${escapeHtml(className)}" width="${symbolSize}" height="${symbolSize}" viewBox="0 0 ${symbolSize} ${symbolSize}" aria-hidden="true">
+        <circle cx="${symbolSize / 2}" cy="${symbolSize / 2}" r="${symbolSize * 0.32}"></circle>
+        <circle cx="${symbolSize / 2}" cy="${symbolSize / 2}" r="${symbolSize * 0.22}"></circle>
       </svg>
     `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconSize: [iconSize, iconSize],
+    iconAnchor: [iconSize / 2, iconSize / 2],
   });
 }
 
@@ -254,4 +435,13 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normalizeBearing(value) {
+  const bearing = Number(value);
+  if (!Number.isFinite(bearing)) {
+    return 0;
+  }
+
+  return Math.round(((bearing % 360) + 360) % 360);
 }

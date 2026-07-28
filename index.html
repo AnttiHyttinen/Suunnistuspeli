@@ -6,14 +6,18 @@
     <title>Suunnistuspeli</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
     <script
       defer
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script type="module" src="./src/main.js?v=5"></script>
+    <script
+      defer
+      src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"
+    ></script>
+    <script type="module" src="./src/main.js?v=9"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -274,6 +278,40 @@
           </div>
           <button id="floatingAbortButton" class="map-abort-button" type="button" hidden>
             Lopeta
+          </button>
+        </div>
+        <div
+          id="mapRotationControls"
+          class="map-rotation-controls"
+          role="group"
+          aria-label="Kartan suunta"
+          hidden
+        >
+          <button
+            id="rotateMapLeftButton"
+            type="button"
+            aria-label="Kierrä karttaa vasemmalle"
+            title="Kierrä vasemmalle"
+          >
+            <span aria-hidden="true">↺</span>
+          </button>
+          <button
+            id="resetMapRotationButton"
+            class="compass-button"
+            type="button"
+            aria-label="Palauta pohjoinen ylös"
+            title="Palauta pohjoinen ylös"
+          >
+            <span id="mapCompassNeedle" class="map-compass-needle" aria-hidden="true">N</span>
+            <small id="mapBearingText">0°</small>
+          </button>
+          <button
+            id="rotateMapRightButton"
+            type="button"
+            aria-label="Kierrä karttaa oikealle"
+            title="Kierrä oikealle"
+          >
+            <span aria-hidden="true">↻</span>
           </button>
         </div>
         <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

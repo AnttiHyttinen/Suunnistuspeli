@@ -662,6 +662,8 @@ body.is-playing .map-area {
 }
 
 .course-marker {
+  display: grid !important;
+  place-items: center;
   border: 0;
   background: transparent;
 }
@@ -704,6 +706,10 @@ body.is-playing .map-area {
 }
 
 .course-symbol.visited circle {
+  fill: rgba(22, 131, 90, 0.72);
+}
+
+.course-symbol.visited polygon {
   fill: rgba(22, 131, 90, 0.72);
 }
 
@@ -1690,4 +1696,119 @@ body:has(.course-edit-button.is-active) .course-marker.is-dragging .course-symbo
     drop-shadow(0 8px 12px rgba(28, 37, 32, 0.34));
   transform: scale(1.12);
   transform-origin: center;
+}
+
+.leaflet-marker-draggable.course-marker,
+.leaflet-marker-draggable.course-marker * {
+  touch-action: none !important;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.leaflet-container.is-course-point-dragging {
+  touch-action: none !important;
+  user-select: none;
+}
+
+.map-rotation-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 38px;
+  display: grid;
+  grid-template-columns: 42px 50px 42px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(18, 33, 25, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 30px rgba(18, 33, 25, 0.22);
+  backdrop-filter: blur(10px);
+  z-index: 740;
+}
+
+.map-rotation-controls[hidden] {
+  display: none;
+}
+
+.map-rotation-controls button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 5px;
+  padding: 0;
+  background: #f1f5ef;
+  color: var(--forest-dark);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.map-rotation-controls button:hover {
+  background: #e5eee7;
+}
+
+.map-rotation-controls.is-disabled {
+  opacity: 0.58;
+}
+
+.map-rotation-controls button:disabled {
+  cursor: not-allowed;
+}
+
+.map-rotation-controls button:disabled:hover {
+  background: #f1f5ef;
+}
+
+.map-rotation-controls .compass-button {
+  grid-template-rows: 22px 12px;
+  width: 50px;
+  background: var(--forest-dark);
+  color: #ffffff;
+}
+
+.map-compass-needle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: #ffffff;
+  font-size: 0.72rem;
+  transform-origin: center;
+  transition: transform 100ms linear;
+}
+
+.map-compass-needle::before {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin-top: -14px;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--signal);
+  border-left: 5px solid transparent;
+  content: "";
+}
+
+.map-rotation-controls small {
+  color: #bed1c7;
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+@media (max-width: 620px) {
+  .map-rotation-controls {
+    right: 10px;
+    bottom: 34px;
+    grid-template-columns: 40px 48px 40px;
+  }
+
+  .map-rotation-controls button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .map-rotation-controls .compass-button {
+    width: 48px;
+  }
 }

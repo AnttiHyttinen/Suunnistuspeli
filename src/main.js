@@ -1,17 +1,18 @@
-import { formatDistance, generateCourse } from "./course.js?v=5";
-import { createManualPosition, GeoTracker } from "./geo.js?v=5";
-import { OrienteeringGame, GameStatus } from "./game.js?v=5";
-import { MapView } from "./mapView.js?v=5";
+import { formatDistance, generateCourse } from "./course.js?v=9";
+import { createManualPosition, GeoTracker } from "./geo.js?v=9";
+import { OrienteeringGame, GameStatus } from "./game.js?v=9";
+import { MapView } from "./mapView.js?v=9";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js?v=5";
-import { UI } from "./ui.js?v=5";
+} from "./storage.js?v=9";
+import { UI } from "./ui.js?v=9";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
+const MAP_BEARING_STORAGE = "suunnistuspeli.mapBearing";
 
 window.addEventListener("DOMContentLoaded", () => {
   const ui = new UI();
@@ -19,7 +20,15 @@ window.addEventListener("DOMContentLoaded", () => {
     onChange: (state) => renderAll(state),
     onNotify: (message) => ui.notify(message),
   });
+  const storedBearing = Number(localStorage.getItem(MAP_BEARING_STORAGE)) || 0;
   const mapView = new MapView("map", {
+    initialBearing: storedBearing,
+    onBearingChange: (bearing, { committed } = {}) => {
+      ui.setMapBearing(bearing);
+      if (committed) {
+        localStorage.setItem(MAP_BEARING_STORAGE, String(bearing));
+      }
+    },
     onTargetClick: (targetId) => {
       game.handleTargetClick(targetId);
       if (game.getState().status === GameStatus.finished) {
@@ -46,6 +55,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const storedApiKey = localStorage.getItem(MML_API_KEY_STORAGE) || "";
   ui.setApiKey(storedApiKey);
+  ui.setMapRotationAvailable(mapView.supportsRotation());
+  ui.setMapBearing(mapView.getBearing());
   mapView.setBaseLayer(ui.getLayerSettings().layer, storedApiKey);
 
   ui.bind({
@@ -106,6 +117,9 @@ window.addEventListener("DOMContentLoaded", () => {
           : "Radan muokkaus päättyi.",
       );
     },
+    onRotateMapLeft: () => mapView.rotateBy(-15),
+    onResetMapRotation: () => mapView.setBearing(0),
+    onRotateMapRight: () => mapView.rotateBy(15),
     onStart: async () => {
       if (game.getState().status === GameStatus.playing) {
         if (!(await ui.confirmAbort())) {
@@ -204,6 +218,7 @@ window.addEventListener("DOMContentLoaded", () => {
       mapView.showUserLocation(state.latestPosition || state.start);
     }
 
+    mapView.setCourseEditing(state.editingCourse);
     mapView.drawCourse(state.course, state);
     mapView.drawVisibleTrack(state.visibleTrack);
     ui.render(state);
