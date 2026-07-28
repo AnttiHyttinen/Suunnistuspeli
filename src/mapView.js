@@ -11,15 +11,19 @@ export class MapView {
       onBearingChange,
       onTargetClick,
       onCoursePointMove,
+      onCoursePointSelect,
     } = {},
   ) {
     this.onBearingChange = onBearingChange;
     this.onTargetClick = onTargetClick;
     this.onCoursePointMove = onCoursePointMove;
+    this.onCoursePointSelect = onCoursePointSelect;
     this.rotationSupported = typeof L.Map.prototype.setBearing === "function";
     this.courseEditingActive = false;
     this.bearingBeforeCourseEditing = 0;
     this.touchRotateWasEnabled = false;
+    this.selectedCoursePointId = null;
+    this.coursePointMarkers = new Map();
     this.map = L.map(elementId, {
       zoomControl: true,
       preferCanvas: true,
@@ -40,6 +44,8 @@ export class MapView {
       this.map.on("rotate", () => this.emitBearingChange(false));
       this.map.on("rotateend", () => this.emitBearingChange(true));
     }
+    this.map.on("click", (event) => this.handleCoursePlacement(event));
+    this.bindTouchCoursePointSelection();
     this.setBaseLayer("openTopo");
   }
 
@@ -75,11 +81,19 @@ export class MapView {
 
   setCourseEditing(active) {
     const nextActive = Boolean(active);
-    if (!this.rotationSupported || nextActive === this.courseEditingActive) {
+    if (nextActive === this.courseEditingActive) {
       return;
     }
 
     this.courseEditingActive = nextActive;
+    if (!nextActive) {
+      this.clearCoursePointSelection();
+    }
+
+    if (!this.rotationSupported) {
+      return;
+    }
+
     if (nextActive) {
       this.bearingBeforeCourseEditing = this.getBearing();
       this.touchRotateWasEnabled = Boolean(this.map.touchRotate?.enabled?.());
@@ -92,6 +106,100 @@ export class MapView {
       this.map.touchRotate?.enable?.();
     }
     this.setBearing(this.bearingBeforeCourseEditing, { committed: false });
+  }
+
+  bindTouchCoursePointSelection() {
+    const container = this.map.getContainer();
+    const selectFromEvent = (event) => {
+      if (!this.courseEditingActive) {
+        return;
+      }
+
+      const markerElement = event.target?.closest?.("[data-course-point-id]");
+      if (!markerElement) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      this.selectCoursePoint(markerElement.dataset.coursePointId);
+    };
+
+    if (window.PointerEvent) {
+      container.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.pointerType === "touch") {
+            selectFromEvent(event);
+          }
+        },
+        { capture: true, passive: false },
+      );
+      return;
+    }
+
+    container.addEventListener("touchstart", selectFromEvent, {
+      capture: true,
+      passive: false,
+    });
+  }
+
+  registerCoursePointMarker(marker, point) {
+    const markerElement = marker.getElement();
+    if (!markerElement) {
+      return;
+    }
+
+    markerElement.dataset.coursePointId = point.id;
+    this.coursePointMarkers.set(point.id, marker);
+    markerElement.classList.toggle("is-selected", point.id === this.selectedCoursePointId);
+
+    marker.on("click", (event) => {
+      L.DomEvent.stopPropagation(event.originalEvent);
+      this.selectCoursePoint(point.id);
+    });
+  }
+
+  selectCoursePoint(pointId) {
+    if (!this.courseEditingActive || !this.coursePointMarkers.has(pointId)) {
+      return;
+    }
+
+    this.selectedCoursePointId = pointId;
+    this.coursePointMarkers.forEach((marker, id) => {
+      marker.getElement()?.classList.toggle("is-selected", id === pointId);
+    });
+    this.map.getContainer().classList.add("is-course-point-selected");
+
+    const point = this.coursePointMarkers.get(pointId);
+    this.onCoursePointSelect?.(point?.options?.alt || "Piste");
+  }
+
+  clearCoursePointSelection() {
+    this.selectedCoursePointId = null;
+    this.coursePointMarkers.forEach((marker) => {
+      marker.getElement()?.classList.remove("is-selected");
+    });
+    this.map.getContainer().classList.remove("is-course-point-selected");
+  }
+
+  handleCoursePlacement(event) {
+    if (!this.courseEditingActive || !this.selectedCoursePointId) {
+      return;
+    }
+
+    if (event.originalEvent?.target?.closest?.("[data-course-point-id]")) {
+      return;
+    }
+
+    const pointId = this.selectedCoursePointId;
+    const position = event.latlng;
+    this.clearCoursePointSelection();
+    this.onCoursePointMove?.(pointId, {
+      lat: position.lat,
+      lng: position.lng,
+    });
   }
 
   setBaseLayer(layerKey, apiKey = "") {
@@ -150,8 +258,10 @@ export class MapView {
 
   drawCourse(course, state) {
     this.courseLayer.clearLayers();
+    this.coursePointMarkers.clear();
 
     if (!course) {
+      this.clearCoursePointSelection();
       return;
     }
 
@@ -181,7 +291,10 @@ export class MapView {
       title: state.editingCourse ? "Raahaa lähtöpistettä" : "Lähtö",
       alt: "Lähtö",
     }).addTo(this.courseLayer);
-    this.bindCoursePointDrag(startMarker, course.start, course, routeLine);
+    if (state.editingCourse) {
+      this.registerCoursePointMarker(startMarker, course.start);
+      this.bindCoursePointDrag(startMarker, course.start, course, routeLine);
+    }
 
     const targets = getCourseTargets(course);
     targets.forEach((target, index) => {
@@ -211,6 +324,7 @@ export class MapView {
       }).addTo(this.courseLayer);
 
       if (state.editingCourse) {
+        this.registerCoursePointMarker(marker, target);
         this.bindCoursePointDrag(marker, target, course, routeLine);
       } else {
         marker.on("click", () => this.onTargetClick?.(target.id));
@@ -271,6 +385,7 @@ export class MapView {
         return;
       }
 
+      this.clearCoursePointSelection();
       this.onCoursePointMove?.(point.id, {
         lat: latestLatLng.lat,
         lng: latestLatLng.lng,

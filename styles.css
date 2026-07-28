@@ -1698,6 +1698,22 @@ body:has(.course-edit-button.is-active) .course-marker.is-dragging .course-symbo
   transform-origin: center;
 }
 
+body:has(.course-edit-button.is-active) .course-marker.is-selected {
+  cursor: crosshair;
+}
+
+body:has(.course-edit-button.is-active) .course-marker.is-selected .course-symbol {
+  filter:
+    drop-shadow(0 0 2px #ffffff)
+    drop-shadow(0 0 10px rgba(220, 54, 58, 0.95));
+  transform: scale(1.16);
+  transform-origin: center;
+}
+
+.leaflet-container.is-course-point-selected {
+  cursor: crosshair;
+}
+
 .leaflet-marker-draggable.course-marker,
 .leaflet-marker-draggable.course-marker * {
   touch-action: none !important;

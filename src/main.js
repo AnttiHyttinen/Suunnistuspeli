@@ -1,15 +1,15 @@
-import { formatDistance, generateCourse } from "./course.js?v=9";
-import { createManualPosition, GeoTracker } from "./geo.js?v=9";
-import { OrienteeringGame, GameStatus } from "./game.js?v=9";
-import { MapView } from "./mapView.js?v=9";
+import { formatDistance, generateCourse } from "./course.js?v=10";
+import { createManualPosition, GeoTracker } from "./geo.js?v=10";
+import { OrienteeringGame, GameStatus } from "./game.js?v=10";
+import { MapView } from "./mapView.js?v=10";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js?v=9";
-import { UI } from "./ui.js?v=9";
+} from "./storage.js?v=10";
+import { UI } from "./ui.js?v=10";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
 const MAP_BEARING_STORAGE = "suunnistuspeli.mapBearing";
@@ -41,6 +41,8 @@ window.addEventListener("DOMContentLoaded", () => {
         ui.notify(`Piste siirretty. Radan pituus on nyt ${formatDistance(distance)}.`);
       }
     },
+    onCoursePointSelect: (label) =>
+      ui.notify(`${label} valittu. Napauta kartalta pisteen uusi paikka.`),
   });
   const geoTracker = new GeoTracker({
     onPosition: (position, options) => {

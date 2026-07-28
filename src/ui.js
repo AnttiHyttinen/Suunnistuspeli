@@ -356,7 +356,7 @@ export class UI {
     if (state.editingCourse) {
       this.elements.mapInfoTitle.textContent = "Muokkaa rataa";
       this.elements.mapInfoText.textContent =
-        "Raahaa lähtöä, rastia tai maalia. Reittiviiva seuraa mukana.";
+        "Raahaa hiirellä tai valitse piste koskettamalla ja napauta sille uusi paikka.";
       return;
     }
 
