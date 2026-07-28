@@ -27,7 +27,7 @@ export class MapView {
     this.coursePointMarkers = new Map();
     this.map = L.map(elementId, {
       zoomControl: true,
-      preferCanvas: true,
+      preferCanvas: false,
       rotate: this.rotationSupported,
       bearing: normalizeBearing(initialBearing),
       touchRotate: this.rotationSupported,
@@ -36,8 +36,9 @@ export class MapView {
     }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 14);
 
     this.baseLayer = null;
-    this.map.createPane("coursePane");
-    this.map.getPane("coursePane").style.zIndex = 625;
+    this.vectorRenderer = L.svg({ padding: 0.5 });
+    this.courseRenderSignature = null;
+    this.trackLine = null;
     this.courseLayer = L.layerGroup().addTo(this.map);
     this.trackLayer = L.layerGroup().addTo(this.map);
     this.userLayer = L.layerGroup().addTo(this.map);
@@ -46,7 +47,7 @@ export class MapView {
       this.map.on("rotateend", () => this.emitBearingChange(true));
     }
     this.map.on("click", (event) => this.handleCoursePlacement(event));
-    this.bindTouchCourseInteractions();
+    this.bindTouchCoursePointSelection();
     this.setBaseLayer("openTopo");
   }
 
@@ -109,7 +110,7 @@ export class MapView {
     this.setBearing(this.bearingBeforeCourseEditing, { committed: false });
   }
 
-  bindTouchCourseInteractions() {
+  bindTouchCoursePointSelection() {
     const container = this.map.getContainer();
     const selectFromEvent = (event) => {
       if (!this.courseEditingActive) {
@@ -128,48 +129,6 @@ export class MapView {
       return true;
     };
 
-    const startTargetTap = (event) => {
-      const markerElement = event.target?.closest?.("[data-course-target-id]");
-      if (!markerElement) {
-        return false;
-      }
-
-      const targetId = markerElement.dataset.courseTargetId;
-      const pointerId = event.pointerId;
-      const startX = event.clientX;
-      const startY = event.clientY;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-
-      const cleanup = () => {
-        document.removeEventListener("pointerup", finishTargetTap, true);
-        document.removeEventListener("pointercancel", cancelTargetTap, true);
-      };
-      const cancelTargetTap = () => cleanup();
-      const finishTargetTap = (endEvent) => {
-        cleanup();
-        if (pointerId !== undefined && endEvent.pointerId !== pointerId) {
-          return;
-        }
-
-        const movement = Math.hypot(endEvent.clientX - startX, endEvent.clientY - startY);
-        if (movement <= TOUCH_TAP_TOLERANCE_PX) {
-          this.onTargetClick?.(targetId);
-        }
-      };
-
-      document.addEventListener("pointerup", finishTargetTap, {
-        capture: true,
-        once: true,
-      });
-      document.addEventListener("pointercancel", cancelTargetTap, {
-        capture: true,
-        once: true,
-      });
-      return true;
-    };
-
     if (window.PointerEvent) {
       container.addEventListener(
         "pointerdown",
@@ -178,7 +137,7 @@ export class MapView {
             return;
           }
 
-          selectFromEvent(event) || startTargetTap(event);
+          selectFromEvent(event);
         },
         { capture: true, passive: false },
       );
@@ -188,41 +147,7 @@ export class MapView {
     container.addEventListener(
       "touchstart",
       (event) => {
-        if (selectFromEvent(event)) {
-          return;
-        }
-
-        const markerElement = event.target?.closest?.("[data-course-target-id]");
-        const touch = event.changedTouches?.[0];
-        if (!markerElement || !touch) {
-          return;
-        }
-
-        const targetId = markerElement.dataset.courseTargetId;
-        const startX = touch.clientX;
-        const startY = touch.clientY;
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation?.();
-
-        document.addEventListener(
-          "touchend",
-          (endEvent) => {
-            const endTouch = endEvent.changedTouches?.[0];
-            if (!endTouch) {
-              return;
-            }
-
-            const movement = Math.hypot(
-              endTouch.clientX - startX,
-              endTouch.clientY - startY,
-            );
-            if (movement <= TOUCH_TAP_TOLERANCE_PX) {
-              this.onTargetClick?.(targetId);
-            }
-          },
-          { capture: true, once: true, passive: true },
-        );
+        selectFromEvent(event);
       },
       { capture: true, passive: false },
     );
@@ -246,11 +171,112 @@ export class MapView {
 
   registerGameTargetMarker(marker, target) {
     const markerElement = marker.getElement();
-    if (markerElement) {
-      markerElement.dataset.courseTargetId = target.id;
+    if (!markerElement) {
+      return;
     }
 
-    marker.on("click", () => this.onTargetClick?.(target.id));
+    markerElement.dataset.courseTargetId = target.id;
+    markerElement.setAttribute("role", "button");
+    markerElement.tabIndex = 0;
+
+    let touchStart = null;
+    let lastTouchActivation = 0;
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      this.onTargetClick?.(target.id);
+    };
+
+    if (window.PointerEvent) {
+      markerElement.addEventListener("pointerdown", (event) => {
+        if (event.pointerType !== "touch") {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        touchStart = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        try {
+          markerElement.setPointerCapture?.(event.pointerId);
+        } catch {
+          // The marker stays stable during play, so capture is only an extra safeguard.
+        }
+      });
+      markerElement.addEventListener("pointerup", (event) => {
+        if (event.pointerType !== "touch" || !touchStart) {
+          return;
+        }
+
+        const start = touchStart;
+        touchStart = null;
+        if (event.pointerId !== start.pointerId) {
+          return;
+        }
+
+        const movement = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+        if (movement <= TOUCH_TAP_TOLERANCE_PX) {
+          lastTouchActivation = Date.now();
+          activate(event);
+        }
+      });
+      markerElement.addEventListener("pointercancel", () => {
+        touchStart = null;
+      });
+    } else {
+      markerElement.addEventListener(
+        "touchstart",
+        (event) => {
+          const touch = event.changedTouches?.[0];
+          if (!touch) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          touchStart = { x: touch.clientX, y: touch.clientY };
+        },
+        { passive: false },
+      );
+      markerElement.addEventListener(
+        "touchend",
+        (event) => {
+          const touch = event.changedTouches?.[0];
+          if (!touch || !touchStart) {
+            return;
+          }
+
+          const start = touchStart;
+          touchStart = null;
+          const movement = Math.hypot(touch.clientX - start.x, touch.clientY - start.y);
+          if (movement <= TOUCH_TAP_TOLERANCE_PX) {
+            lastTouchActivation = Date.now();
+            activate(event);
+          }
+        },
+        { passive: false },
+      );
+      markerElement.addEventListener("touchcancel", () => {
+        touchStart = null;
+      });
+    }
+
+    markerElement.addEventListener("click", (event) => {
+      if (Date.now() - lastTouchActivation < 700) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      activate(event);
+    });
+    markerElement.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        activate(event);
+      }
+    });
   }
 
   selectCoursePoint(pointId) {
@@ -349,6 +375,12 @@ export class MapView {
   }
 
   drawCourse(course, state) {
+    const renderSignature = createCourseRenderSignature(course, state);
+    if (renderSignature === this.courseRenderSignature) {
+      return;
+    }
+    this.courseRenderSignature = renderSignature;
+
     this.courseLayer.clearLayers();
     this.coursePointMarkers.clear();
 
@@ -360,12 +392,14 @@ export class MapView {
     const route = getCourseRoute(course);
     const latLngs = route.map((point) => [point.lat, point.lng]);
     const routeLine = L.polyline(latLngs, {
-      pane: "coursePane",
+      pane: "overlayPane",
+      renderer: this.vectorRenderer,
       color: COURSE_PURPLE,
       weight: 4,
       opacity: 0.95,
       lineCap: "butt",
       lineJoin: "round",
+      interactive: false,
     }).addTo(this.courseLayer);
 
     const startClassName = [
@@ -376,7 +410,7 @@ export class MapView {
       .join(" ");
     const startMarker = L.marker([course.start.lat, course.start.lng], {
       icon: createStartIcon(startClassName),
-      pane: "coursePane",
+      pane: "markerPane",
       zIndexOffset: 500,
       draggable: state.editingCourse,
       autoPan: false,
@@ -407,7 +441,7 @@ export class MapView {
           target.type === "finish"
             ? createFinishIcon(className)
             : createControlIcon(label, className),
-        pane: "coursePane",
+        pane: "markerPane",
         zIndexOffset: isActive ? 800 : 600,
         draggable: state.editingCourse,
         autoPan: false,
@@ -553,22 +587,30 @@ export class MapView {
   }
 
   drawVisibleTrack(points) {
-    this.trackLayer.clearLayers();
-
     if (!points || points.length < 2) {
+      if (this.trackLine) {
+        this.trackLayer.removeLayer(this.trackLine);
+        this.trackLine = null;
+      }
       return;
     }
 
-    L.polyline(
-      points.map((point) => [point.lat, point.lng]),
-      {
-        color: "#16835a",
-        weight: 5,
-        opacity: 0.82,
-        lineCap: "round",
-        lineJoin: "round",
-      },
-    ).addTo(this.trackLayer);
+    const latLngs = points.map((point) => [point.lat, point.lng]);
+    if (this.trackLine) {
+      this.trackLine.setLatLngs(latLngs);
+      return;
+    }
+
+    this.trackLine = L.polyline(latLngs, {
+      pane: "overlayPane",
+      renderer: this.vectorRenderer,
+      color: "#16835a",
+      weight: 5,
+      opacity: 0.82,
+      lineCap: "round",
+      lineJoin: "round",
+      interactive: false,
+    }).addTo(this.trackLayer);
   }
 
   fitCourse(course) {
@@ -651,4 +693,19 @@ function normalizeBearing(value) {
   }
 
   return Math.round(((bearing % 360) + 360) % 360);
+}
+
+function createCourseRenderSignature(course, state) {
+  if (!course) {
+    return "no-course";
+  }
+
+  return JSON.stringify({
+    route: getCourseRoute(course).map((point) => [point.id, point.lat, point.lng]),
+    status: state.status,
+    editing: Boolean(state.editingCourse),
+    started: Boolean(state.startedAt),
+    activeIndex: state.activeIndex,
+    visits: state.visits.map((visit) => visit.id),
+  });
 }

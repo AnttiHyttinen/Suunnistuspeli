@@ -1714,6 +1714,11 @@ body:has(.course-edit-button.is-active) .course-marker.is-selected .course-symbo
   cursor: crosshair;
 }
 
+.course-marker[data-course-target-id] {
+  touch-action: manipulation !important;
+  cursor: pointer;
+}
+
 .leaflet-marker-draggable.course-marker,
 .leaflet-marker-draggable.course-marker * {
   touch-action: none !important;

@@ -1,15 +1,15 @@
-import { formatDistance, generateCourse } from "./course.js?v=11";
-import { createManualPosition, GeoTracker } from "./geo.js?v=11";
-import { OrienteeringGame, GameStatus } from "./game.js?v=11";
-import { MapView } from "./mapView.js?v=11";
+import { formatDistance, generateCourse } from "./course.js?v=12";
+import { createManualPosition, GeoTracker } from "./geo.js?v=12";
+import { OrienteeringGame, GameStatus } from "./game.js?v=12";
+import { MapView } from "./mapView.js?v=12";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js?v=11";
-import { UI } from "./ui.js?v=11";
+} from "./storage.js?v=12";
+import { UI } from "./ui.js?v=12";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
 const MAP_BEARING_STORAGE = "suunnistuspeli.mapBearing";
