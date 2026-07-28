@@ -56,6 +56,78 @@ export class OrienteeringGame {
     this.emitChange();
   }
 
+  setCourseEditing(enabled) {
+    const canEdit =
+      Boolean(this.state.course) &&
+      (this.state.status === GameStatus.ready || this.state.status === GameStatus.planning);
+
+    if (!canEdit) {
+      return false;
+    }
+
+    this.state.editingCourse = Boolean(enabled);
+    this.emitChange();
+    return true;
+  }
+
+  updateCoursePoint(pointId, position) {
+    if (!this.state.course || !this.state.editingCourse || !position) {
+      return false;
+    }
+
+    const movedPoint = {
+      lat: position.lat,
+      lng: position.lng,
+    };
+    let pointFound = false;
+    let start = this.state.course.start;
+    let finish = this.state.course.finish;
+    let controls = this.state.course.controls;
+
+    if (pointId === start.id) {
+      start = { ...start, ...movedPoint };
+      pointFound = true;
+    } else if (pointId === finish.id) {
+      finish = { ...finish, ...movedPoint };
+      pointFound = true;
+    } else {
+      controls = controls.map((control) => {
+        if (control.id !== pointId) {
+          return control;
+        }
+
+        pointFound = true;
+        return { ...control, ...movedPoint };
+      });
+    }
+
+    if (!pointFound) {
+      return false;
+    }
+
+    const route = [start, ...controls, finish];
+    this.state.course = {
+      ...this.state.course,
+      start,
+      controls,
+      finish,
+      plannedDistanceMeters: Math.round(routeDistanceMeters(route)),
+      editedAt: new Date().toISOString(),
+    };
+
+    if (pointId === start.id) {
+      this.state.start = {
+        ...this.state.start,
+        ...movedPoint,
+        source: "Muokattu",
+        timestamp: Date.now(),
+      };
+    }
+
+    this.emitChange();
+    return true;
+  }
+
   loadCourse(course) {
     this.state = {
       ...createInitialState(),
@@ -118,6 +190,7 @@ export class OrienteeringGame {
     this.state.visibleUntil = null;
     this.state.latestPosition = currentPosition;
     this.state.finishReason = null;
+    this.state.editingCourse = false;
 
     this.recordPosition({ ...currentPosition, timestamp: now }, { force: true });
 
@@ -282,6 +355,7 @@ function createInitialState() {
     track: [],
     visits: [],
     finishReason: null,
+    editingCourse: false,
   };
 }
 

@@ -19,6 +19,8 @@ export class UI {
       locateButton: document.querySelector("#locateButton"),
       centerStartButton: document.querySelector("#centerStartButton"),
       generateButton: document.querySelector("#generateButton"),
+      editCourseButton: document.querySelector("#editCourseButton"),
+      courseEditHint: document.querySelector("#courseEditHint"),
       startButton: document.querySelector("#startButton"),
       headerStatePill: document.querySelector("#headerStatePill"),
       startPointText: document.querySelector("#startPointText"),
@@ -92,6 +94,9 @@ export class UI {
     );
     this.elements.generateButton.addEventListener("click", () =>
       actions.onGenerate?.(this.getCourseSettings()),
+    );
+    this.elements.editCourseButton.addEventListener("click", () =>
+      actions.onEditCourse?.(),
     );
     this.elements.startButton.addEventListener("click", () => actions.onStart?.());
     this.elements.floatingAbortButton.addEventListener("click", () => actions.onStart?.());
@@ -240,14 +245,15 @@ export class UI {
       totalTargets > 0 ? Math.min(100, (visitedCount / totalTargets) * 100) : 0;
     const isPlaying = state.status === GameStatus.playing;
     const isFinished = state.status === GameStatus.finished;
+    const isEditing = state.editingCourse;
     const status = statusLabel(state);
 
     this.elements.courseDistanceBadge.textContent = course
       ? formatDistance(course.plannedDistanceMeters)
       : "Ei rataa";
     this.elements.timerText.textContent = formatDuration(state.elapsedMillis);
-    this.elements.headerStatePill.textContent = status;
-    this.elements.gameStatusText.textContent = status;
+    this.elements.headerStatePill.textContent = isEditing ? "Radan muokkaus" : status;
+    this.elements.gameStatusText.textContent = isEditing ? "Radan muokkaus" : status;
     this.elements.gpsStatusText.textContent = gpsLabel(state.latestPosition, state.start);
     this.elements.nextTargetText.textContent =
       state.status === GameStatus.finished
@@ -262,12 +268,18 @@ export class UI {
     document.body.classList.toggle("is-playing", isPlaying);
     document.body.classList.toggle("is-finished", isFinished);
     this.elements.startButton.textContent = "Aloita suunnistus";
-    this.elements.startButton.disabled = !course;
+    this.elements.startButton.disabled = !course || isEditing;
     this.elements.playHud.hidden = !isPlaying;
     this.elements.floatingAbortButton.hidden = !isPlaying;
     this.elements.mapInfo.hidden = isPlaying;
-    this.elements.generateButton.disabled = state.status === GameStatus.playing;
-    this.elements.saveBlankButton.disabled = !course;
+    this.elements.generateButton.disabled = isPlaying || isEditing;
+    this.elements.editCourseButton.disabled = !course || isPlaying || isFinished;
+    this.elements.editCourseButton.textContent = isEditing
+      ? "Lopeta muokkaus"
+      : "Muokkaa rataa";
+    this.elements.editCourseButton.classList.toggle("is-active", isEditing);
+    this.elements.courseEditHint.hidden = !isEditing;
+    this.elements.saveBlankButton.disabled = !course || isEditing;
     this.elements.saveResultButton.disabled =
       !course || (state.track.length === 0 && state.visits.length === 0);
 
@@ -290,6 +302,11 @@ export class UI {
       return;
     }
 
+    if (state.editingCourse) {
+      this.elements.startReadinessText.textContent = "Lopeta muokkaus ennen aloitusta";
+      return;
+    }
+
     if (!state.latestPosition) {
       this.elements.startReadinessText.textContent = "Paikanna itsesi ennen aloitusta";
       return;
@@ -303,6 +320,13 @@ export class UI {
   }
 
   renderMapInfo(state) {
+    if (state.editingCourse) {
+      this.elements.mapInfoTitle.textContent = "Muokkaa rataa";
+      this.elements.mapInfoText.textContent =
+        "Raahaa lähtöä, rastia tai maalia. Reittiviiva seuraa mukana.";
+      return;
+    }
+
     if (state.status === GameStatus.finished) {
       this.elements.mapInfoTitle.textContent =
         state.finishReason === "aborted" ? "Suunnistus keskeytetty" : "Suoritus valmis";

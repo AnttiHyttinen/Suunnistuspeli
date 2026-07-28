@@ -4,8 +4,9 @@ import { getCourseRoute, getCourseTargets } from "./course.js";
 const COURSE_PURPLE = "#b000b8";
 
 export class MapView {
-  constructor(elementId, { onTargetClick } = {}) {
+  constructor(elementId, { onTargetClick, onCoursePointMove } = {}) {
     this.onTargetClick = onTargetClick;
+    this.onCoursePointMove = onCoursePointMove;
     this.map = L.map(elementId, {
       zoomControl: true,
       preferCanvas: true,
@@ -83,7 +84,7 @@ export class MapView {
 
     const route = getCourseRoute(course);
     const latLngs = route.map((point) => [point.lat, point.lng]);
-    L.polyline(latLngs, {
+    const routeLine = L.polyline(latLngs, {
       pane: "coursePane",
       color: COURSE_PURPLE,
       weight: 4,
@@ -92,11 +93,16 @@ export class MapView {
       lineJoin: "round",
     }).addTo(this.courseLayer);
 
-    L.marker([course.start.lat, course.start.lng], {
+    const startMarker = L.marker([course.start.lat, course.start.lng], {
       icon: createStartIcon(),
       pane: "coursePane",
       zIndexOffset: 500,
+      draggable: state.editingCourse,
+      autoPan: true,
+      title: state.editingCourse ? "Raahaa lähtöpistettä" : "Lähtö",
+      alt: "Lähtö",
     }).addTo(this.courseLayer);
+    this.bindCoursePointDrag(startMarker, course.start, course, routeLine);
 
     const targets = getCourseTargets(course);
     targets.forEach((target, index) => {
@@ -118,9 +124,46 @@ export class MapView {
             : createControlIcon(label, className),
         pane: "coursePane",
         zIndexOffset: isActive ? 800 : 600,
+        draggable: state.editingCourse,
+        autoPan: true,
+        title: state.editingCourse ? `Raahaa: ${target.label}` : target.label,
+        alt: target.label,
       }).addTo(this.courseLayer);
 
-      marker.on("click", () => this.onTargetClick?.(target.id));
+      if (state.editingCourse) {
+        this.bindCoursePointDrag(marker, target, course, routeLine);
+      } else {
+        marker.on("click", () => this.onTargetClick?.(target.id));
+      }
+    });
+  }
+
+  bindCoursePointDrag(marker, point, course, routeLine) {
+    if (!marker.dragging?.enabled()) {
+      return;
+    }
+
+    marker.on("dragstart", () => {
+      marker.getElement()?.classList.add("is-dragging");
+    });
+
+    marker.on("drag", (event) => {
+      const latLng = event.target.getLatLng();
+      const draggedRoute = getCourseRoute(course).map((routePoint) =>
+        routePoint.id === point.id
+          ? [latLng.lat, latLng.lng]
+          : [routePoint.lat, routePoint.lng],
+      );
+      routeLine.setLatLngs(draggedRoute);
+    });
+
+    marker.on("dragend", (event) => {
+      marker.getElement()?.classList.remove("is-dragging");
+      const latLng = event.target.getLatLng();
+      this.onCoursePointMove?.(point.id, {
+        lat: latLng.lat,
+        lng: latLng.lng,
+      });
     });
   }
 

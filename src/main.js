@@ -1,15 +1,15 @@
-import { generateCourse } from "./course.js?v=4";
-import { createManualPosition, GeoTracker } from "./geo.js?v=4";
-import { OrienteeringGame, GameStatus } from "./game.js?v=4";
-import { MapView } from "./mapView.js?v=4";
+import { formatDistance, generateCourse } from "./course.js?v=5";
+import { createManualPosition, GeoTracker } from "./geo.js?v=5";
+import { OrienteeringGame, GameStatus } from "./game.js?v=5";
+import { MapView } from "./mapView.js?v=5";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js?v=4";
-import { UI } from "./ui.js?v=4";
+} from "./storage.js?v=5";
+import { UI } from "./ui.js?v=5";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
 
@@ -24,6 +24,12 @@ window.addEventListener("DOMContentLoaded", () => {
       game.handleTargetClick(targetId);
       if (game.getState().status === GameStatus.finished) {
         geoTracker.stop();
+      }
+    },
+    onCoursePointMove: (pointId, position) => {
+      if (game.updateCoursePoint(pointId, position)) {
+        const distance = game.getState().course?.plannedDistanceMeters || 0;
+        ui.notify(`Piste siirretty. Radan pituus on nyt ${formatDistance(distance)}.`);
       }
     },
   });
@@ -86,6 +92,19 @@ window.addEventListener("DOMContentLoaded", () => {
       mapView.drawCourse(course, game.getState());
       mapView.fitCourse(course);
       ui.notify("Rata luotu.");
+    },
+    onEditCourse: () => {
+      const state = game.getState();
+      const nextEditingState = !state.editingCourse;
+      if (!game.setCourseEditing(nextEditingState)) {
+        return;
+      }
+
+      ui.notify(
+        nextEditingState
+          ? "Muokkaustila käytössä. Raahaa lähtöä, rasteja tai maalia."
+          : "Radan muokkaus päättyi.",
+      );
     },
     onStart: async () => {
       if (game.getState().status === GameStatus.playing) {

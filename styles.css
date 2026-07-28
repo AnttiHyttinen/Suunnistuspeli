@@ -1631,3 +1631,63 @@ body.is-playing .leaflet-top.leaflet-left {
     grid-template-columns: 1fr;
   }
 }
+
+.course-edit-button {
+  margin-top: 10px;
+  border-color: rgba(169, 0, 179, 0.28);
+  color: var(--course);
+}
+
+.course-edit-button:hover:not(:disabled) {
+  border-color: var(--course);
+  background: #f8edf8;
+  color: #780080;
+}
+
+.course-edit-button.is-active {
+  border-color: var(--course);
+  background: var(--course);
+  color: #ffffff;
+  box-shadow: 0 9px 22px rgba(169, 0, 179, 0.2);
+}
+
+.course-edit-button.is-active:hover:not(:disabled) {
+  background: #82008a;
+  color: #ffffff;
+}
+
+.course-edit-hint {
+  margin: 9px 2px 0;
+  color: var(--course);
+  font-size: 0.74rem;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+body:has(.course-edit-button.is-active) .map-info {
+  border-left-color: var(--signal);
+}
+
+body:has(.course-edit-button.is-active) .course-marker {
+  cursor: grab;
+}
+
+body:has(.course-edit-button.is-active) .course-marker:hover .course-symbol {
+  filter:
+    drop-shadow(0 0 0.5px #ffffff)
+    drop-shadow(0 0 8px rgba(169, 0, 179, 0.7));
+  transform: scale(1.08);
+  transform-origin: center;
+}
+
+body:has(.course-edit-button.is-active) .course-marker.is-dragging {
+  cursor: grabbing;
+}
+
+body:has(.course-edit-button.is-active) .course-marker.is-dragging .course-symbol {
+  filter:
+    drop-shadow(0 1px 0 #ffffff)
+    drop-shadow(0 8px 12px rgba(28, 37, 32, 0.34));
+  transform: scale(1.12);
+  transform-origin: center;
+}
