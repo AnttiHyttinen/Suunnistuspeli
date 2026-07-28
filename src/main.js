@@ -1,15 +1,15 @@
-import { formatDistance, generateCourse } from "./course.js?v=10";
-import { createManualPosition, GeoTracker } from "./geo.js?v=10";
-import { OrienteeringGame, GameStatus } from "./game.js?v=10";
-import { MapView } from "./mapView.js?v=10";
+import { formatDistance, generateCourse } from "./course.js?v=11";
+import { createManualPosition, GeoTracker } from "./geo.js?v=11";
+import { OrienteeringGame, GameStatus } from "./game.js?v=11";
+import { MapView } from "./mapView.js?v=11";
 import {
   getSavedItem,
   listSavedItems,
   saveBlankCourse,
   saveCompletedCourse,
   SavedItemType,
-} from "./storage.js?v=10";
-import { UI } from "./ui.js?v=10";
+} from "./storage.js?v=11";
+import { UI } from "./ui.js?v=11";
 
 const MML_API_KEY_STORAGE = "suunnistuspeli.mmlApiKey";
 const MAP_BEARING_STORAGE = "suunnistuspeli.mapBearing";
@@ -115,7 +115,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       ui.notify(
         nextEditingState
-          ? "Muokkaustila käytössä. Raahaa lähtöä, rasteja tai maalia."
+          ? "Muokkaustila käytössä. Raahaa hiirellä tai siirrä kahdella napautuksella."
           : "Radan muokkaus päättyi.",
       );
     },

@@ -2,6 +2,7 @@ import { DEFAULT_CENTER, MAP_LAYERS } from "./config.js";
 import { getCourseRoute, getCourseTargets } from "./course.js";
 
 const COURSE_PURPLE = "#b000b8";
+const TOUCH_TAP_TOLERANCE_PX = 14;
 
 export class MapView {
   constructor(
@@ -45,7 +46,7 @@ export class MapView {
       this.map.on("rotateend", () => this.emitBearingChange(true));
     }
     this.map.on("click", (event) => this.handleCoursePlacement(event));
-    this.bindTouchCoursePointSelection();
+    this.bindTouchCourseInteractions();
     this.setBaseLayer("openTopo");
   }
 
@@ -108,41 +109,123 @@ export class MapView {
     this.setBearing(this.bearingBeforeCourseEditing, { committed: false });
   }
 
-  bindTouchCoursePointSelection() {
+  bindTouchCourseInteractions() {
     const container = this.map.getContainer();
     const selectFromEvent = (event) => {
       if (!this.courseEditingActive) {
-        return;
+        return false;
       }
 
       const markerElement = event.target?.closest?.("[data-course-point-id]");
       if (!markerElement) {
-        return;
+        return false;
       }
 
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation?.();
       this.selectCoursePoint(markerElement.dataset.coursePointId);
+      return true;
+    };
+
+    const startTargetTap = (event) => {
+      const markerElement = event.target?.closest?.("[data-course-target-id]");
+      if (!markerElement) {
+        return false;
+      }
+
+      const targetId = markerElement.dataset.courseTargetId;
+      const pointerId = event.pointerId;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+
+      const cleanup = () => {
+        document.removeEventListener("pointerup", finishTargetTap, true);
+        document.removeEventListener("pointercancel", cancelTargetTap, true);
+      };
+      const cancelTargetTap = () => cleanup();
+      const finishTargetTap = (endEvent) => {
+        cleanup();
+        if (pointerId !== undefined && endEvent.pointerId !== pointerId) {
+          return;
+        }
+
+        const movement = Math.hypot(endEvent.clientX - startX, endEvent.clientY - startY);
+        if (movement <= TOUCH_TAP_TOLERANCE_PX) {
+          this.onTargetClick?.(targetId);
+        }
+      };
+
+      document.addEventListener("pointerup", finishTargetTap, {
+        capture: true,
+        once: true,
+      });
+      document.addEventListener("pointercancel", cancelTargetTap, {
+        capture: true,
+        once: true,
+      });
+      return true;
     };
 
     if (window.PointerEvent) {
       container.addEventListener(
         "pointerdown",
         (event) => {
-          if (event.pointerType === "touch") {
-            selectFromEvent(event);
+          if (event.pointerType !== "touch") {
+            return;
           }
+
+          selectFromEvent(event) || startTargetTap(event);
         },
         { capture: true, passive: false },
       );
       return;
     }
 
-    container.addEventListener("touchstart", selectFromEvent, {
-      capture: true,
-      passive: false,
-    });
+    container.addEventListener(
+      "touchstart",
+      (event) => {
+        if (selectFromEvent(event)) {
+          return;
+        }
+
+        const markerElement = event.target?.closest?.("[data-course-target-id]");
+        const touch = event.changedTouches?.[0];
+        if (!markerElement || !touch) {
+          return;
+        }
+
+        const targetId = markerElement.dataset.courseTargetId;
+        const startX = touch.clientX;
+        const startY = touch.clientY;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+
+        document.addEventListener(
+          "touchend",
+          (endEvent) => {
+            const endTouch = endEvent.changedTouches?.[0];
+            if (!endTouch) {
+              return;
+            }
+
+            const movement = Math.hypot(
+              endTouch.clientX - startX,
+              endTouch.clientY - startY,
+            );
+            if (movement <= TOUCH_TAP_TOLERANCE_PX) {
+              this.onTargetClick?.(targetId);
+            }
+          },
+          { capture: true, once: true, passive: true },
+        );
+      },
+      { capture: true, passive: false },
+    );
   }
 
   registerCoursePointMarker(marker, point) {
@@ -159,6 +242,15 @@ export class MapView {
       L.DomEvent.stopPropagation(event.originalEvent);
       this.selectCoursePoint(point.id);
     });
+  }
+
+  registerGameTargetMarker(marker, target) {
+    const markerElement = marker.getElement();
+    if (markerElement) {
+      markerElement.dataset.courseTargetId = target.id;
+    }
+
+    marker.on("click", () => this.onTargetClick?.(target.id));
   }
 
   selectCoursePoint(pointId) {
@@ -327,7 +419,7 @@ export class MapView {
         this.registerCoursePointMarker(marker, target);
         this.bindCoursePointDrag(marker, target, course, routeLine);
       } else {
-        marker.on("click", () => this.onTargetClick?.(target.id));
+        this.registerGameTargetMarker(marker, target);
       }
     });
   }
